@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en" data-framework="jquery">
+	<head>
+		<meta charset="utf-8">
+        <title>Peerster</title>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+        <script src="js/main.js" type="text/javascript"></script>
+	</head>
+	<body>
+        <h1>Peerster</h1>
+        <h2>Node ID</h2>
+        <div id="node-id">
+            <!--AJAX content will load here-->
+        </div>
+        <h2>Messages</h2>
+        <ul id="messages">
+            <!--AJAX content will load here-->
+        </ul>
+        <div>
+            Message:<br>
+            <input type="textbox" name="msg" id="send-message-content" value="Your Message"><br>
+            <button id="send-message-button">Send</button>
+        </div>
+        <h2>Peers</h2>
+        <ul id="peers">
+            <!--AJAX content will load here-->
+        </ul>
+        <div>
+            Peer:<br>
+            <input type="textbox" name="peer" id="add-peer-content" value="<host>:<port>"><br>
+            <button id="add-peer-button">Add</button>
+        </div>
+        <h2>Origins</h2>
+        <ul id="dsdv-origins">
+            <!-- AJAX content will load here -->
+        </ul>
+        <h2><div id="private-origin">Select an origin above to see private messages<!-- AJAX content will load here --></div></h2>
+        <ul id="private-messages">
+            <!-- AJAX content will load here -->
+        </ul>
+        <div id="send-private-message" style="display:none">
+            Send a private message:<br>
+            <input type="textbox" name="private-message-content" id="send-private-message-content" value="Your Private Message"><br>
+            <button id="private-message-button">Send to peer</button>
+        </div>
+        <h2>Share Files</h2>
+        <div>
+            <select id="select-file">
+                <!-- To be filled in -->
+            </select>
+            <button id="share-file-button">Share a file</button>
+        </div>
+        <h2>Download Files</h2>
+        <div>
+            Metahash:<br>
+            <input type="textbox" name="file-hash" id="file-hash" value=""><br>
+            Origin:<br>
+            <input type="textbox" name="file-origin" id="file-origin" value=""><br>
+            File Name:<br>
+            <input type="textbox" name="file-name" id="download-file-name" value=""><br>
+            <button id="download-file-button">Download</button>
+        </div>
+        <h2>Search Files</h2>
+        <div>
+            Keywords (comma-separated list):<br>
+            <input type="textbox" name="keywords" id="keywords" value=""><br>
+            <button id="search-file-button">Search</button>
+        </div>
+        <h3>Results</h3>
+        <div>
+            <ul id="results">
+                <!--AJAX content will load here-->
+            </ul>
+        </div>
+        Filename of download:<br>
+        <input type="textbox" name="download-result-filename" id="download-result-filename" value=""><br>    </body>
+</html>
