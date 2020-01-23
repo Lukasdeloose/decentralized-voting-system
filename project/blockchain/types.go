@@ -35,8 +35,8 @@ type Block struct {
 	Timestamp      string
 	Scipers        []uint32 // Sciper numbers of all registered citizens, generally 6 digits. Should only be added by the 'government'
 	PaillierPublic paillier.PublicKey
-	Hash           [32]byte
-	PrevHash       [32]byte
+	Hash           string
+	PrevHash       string
 	Difficulty     int
 	Nonce          string
 }
