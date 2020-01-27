@@ -1,22 +1,17 @@
 package web
 
 import (
-	. "github.com/lukasdeloose/decentralized-voting-system/project/files"
+	"github.com/gorilla/mux"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/privateRumorer"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/rumorer"
-	. "github.com/lukasdeloose/decentralized-voting-system/project/search"
-
-	"github.com/gorilla/mux"
 	"net/http"
 	"time"
 )
 
 // Server that handles the HTTP requests from the GUI running on localhost:8080
 type WebServer struct {
-	rumorer        GenericRumorer
+	rumorer        *Rumorer
 	privateRumorer *PrivateRumorer
-	fileHandler    *FileHandler
-	searcher       *Searcher
 
 	router *mux.Router
 	server *http.Server
@@ -24,13 +19,11 @@ type WebServer struct {
 	uiPort string
 }
 
-func NewWebServer(rumorer GenericRumorer, privateRumorer *PrivateRumorer, fileHandler *FileHandler, searcher *Searcher, uiPort string) (ws *WebServer) {
+func NewWebServer(rumorer *Rumorer, privateRumorer *PrivateRumorer, uiPort string) (ws *WebServer) {
 	ws = &WebServer{}
 	ws.uiPort = uiPort
 	ws.rumorer = rumorer
 	ws.privateRumorer = privateRumorer
-	ws.fileHandler = fileHandler
-	ws.searcher = searcher
 	ws.router = mux.NewRouter()
 
 	// Serve api calls
@@ -42,11 +35,6 @@ func NewWebServer(rumorer GenericRumorer, privateRumorer *PrivateRumorer, fileHa
 	ws.router.HandleFunc("/dsdv", ws.handleGetOrigins).Methods("GET")
 	ws.router.HandleFunc("/private/{origin}", ws.handleGetPrivate).Methods("GET")
 	ws.router.HandleFunc("/private/{origin}", ws.handlePostPrivate).Methods("POST")
-	ws.router.HandleFunc("/files", ws.handleGetFiles).Methods("GET")
-	ws.router.HandleFunc("/files/download", ws.handlePostDownloadFile).Methods("POST")
-	ws.router.HandleFunc("/files/share", ws.handlePostShareFile).Methods("POST")
-	ws.router.HandleFunc("/files/search", ws.handlePostSearchFile).Methods("POST")
-	ws.router.HandleFunc("/files/search", ws.handleGetSearchFile).Methods("GET")
 
 	// Serve static files (Note: relative path from Peerster root)
 	ws.router.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("web/assets"))))

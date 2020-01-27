@@ -1,7 +1,6 @@
 package rumorer
 
 import (
-	. "github.com/lukasdeloose/decentralized-voting-system/project/confirmationRumorer"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/constants"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/udp"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
@@ -35,10 +34,6 @@ type Rumorer struct {
 	out  chan *AddrGossipPacket
 	uiIn chan *Message
 
-	// Channel used to spread TLCMessages
-	tlcIn chan *TLCMessageWithReplyChan
-	tlcOut chan *TLCMessage
-
 	// State of this peer, this contains the vector clock and messages
 	state *State
 
@@ -51,19 +46,6 @@ type Rumorer struct {
 
 	// Interval between anti-entropy runs
 	antiEntropyTimout time.Duration
-
-	// Keep track of the buffered TLCMessages
-	tlcBuffer *tlcBuffer
-}
-
-
-func (r *Rumorer) TLCIn() chan *TLCMessageWithReplyChan{
-	return r.tlcIn
-}
-
-
-func (r *Rumorer) TLCOut() chan *TLCMessage {
-	return r.tlcOut
 }
 
 func NewRumorer(name string, peers *Set,
@@ -79,14 +61,11 @@ func NewRumorer(name string, peers *Set,
 		in:                in,
 		out:               out,
 		uiIn:              uiIn,
-		tlcIn:             make(chan *TLCMessageWithReplyChan),
-		tlcOut:            make(chan *TLCMessage),
 		state:             NewState(out),
 		ackChans:          make(map[UDPAddr]map[msgID]chan bool),
 		ackChansMutex:     &sync.RWMutex{},
 		timeout:           time.Second * ACKTIMEOUT,
 		antiEntropyTimout: time.Second * time.Duration(antiEntropy),
-		tlcBuffer:         NewTLCBuffer(),
 	}
 }
 
@@ -140,10 +119,6 @@ func (r *Rumorer) Run() {
 	if r.antiEntropyTimout != 0 {
 		go r.runAntiEntropy()
 	}
-
-	if HW3EX2 || HW3EX3 {
-		go r.runSpreadTLCMessage()
-	}
 }
 
 func (r *Rumorer) runPeer() {
@@ -160,6 +135,10 @@ func (r *Rumorer) runPeer() {
 				r.peers.Add(address)
 
 				// Print logging info
+				if gossip.Rumor.Text != "" && (HW1 || HW2) {
+					fmt.Printf("RUMOR origin %v from %v ID %v contents %v\n",
+						gossip.Rumor.Origin, address, gossip.Rumor.ID, gossip.Rumor.Text)
+				}
 				if HW1 && gossip.Rumor != nil && gossip.Rumor.Text != "" {
 					fmt.Printf("PEERS %v\n", r.peers)
 				}
@@ -189,35 +168,6 @@ func (r *Rumorer) runPeer() {
 		}()
 	}
 }
-
-
-func (r *Rumorer) runSpreadTLCMessage() {
-	for tlc := range r.tlcIn {
-		if Debug {
-			fmt.Printf("[DEBUG] Spreading TLCMessage for file '%v'\n", tlc.Msg.TxBlock.Transaction.Name)
-		}
-
-		// Set current state as vector clock
-		tlc.Msg.VectorClock = r.state.ToStatusPacket()
-
-		// If ID not provided: give it a new one
-		if tlc.Msg.ID == 0 {
-			r.idMutex.Lock()
-			tlc.Msg.ID = r.id
-			r.id += 1
-			r.idMutex.Unlock()
-
-			// Return ID to the ConfirmationRumorer
-			if tlc.ReplyChan != nil {
-				tlc.ReplyChan <- tlc.Msg.ID
-			}
-		} // If it is, simply spread the tlc msg (again)
-
-		// Spread the TLCMessage, note that we will spread it, even though it was already saved!
-		go r.handleRumor(tlc.Msg, UDPAddr{}, true)
-	}
-}
-
 
 func (r *Rumorer) runAntiEntropy() {
 	for {
@@ -285,54 +235,8 @@ func (r *Rumorer) startMongering(msg MongerableMessage, except UDPAddr, coinFlip
 
 
 func (r *Rumorer) handleRumor(msg MongerableMessage, sender UDPAddr, forceResend bool) {
-	tlc := msg.ToGossip().TLCMessage
-	rumor := msg.ToGossip().Rumor
-
 	// Update peer state, and check if the message was a message we were looking for
 	accepted := r.state.Update(msg)
-
-	// Only buffer TLCMessages that aren't ours and are new
-	if sender.String() != "" && accepted {
-		if HW3EX3 {
-			var tlcToPass []*TLCMessage
-
-			// If it is a tlc message: buffer it, and see which tlc's we can now pass to
-			// the ConfirmationRumorer
-			if tlc != nil {
-				// Add the tlc message to the buffer
-				r.tlcBuffer.Add(tlc)
-
-				// Process the buffer to see if we can
-				// pass any more elements to the ConfirmationRumorer
-				tlcToPass = r.tlcBuffer.Update(r.state)
-
-				// It it is a rumor: see if we can now send any more tlc's to the ConfirmationRumorer
-			} else if rumor != nil {
-				tlcToPass = r.tlcBuffer.Update(r.state)
-			}
-
-			// Asynchronously pass the TLC messages for which the vector clock is now satisfied
-			// to the ConfirmationRumorer
-			go func() {
-				if Debug {
-					fmt.Printf("[DEBUG] Passing %v TLCMessages to ConfirmationRumorer\n", len(tlcToPass))
-				}
-				for _, tlc := range tlcToPass {
-					r.tlcOut <- tlc
-					if Debug {
-						fmt.Printf("[DEBUG] Passed tlc from %v for %v to ConfR\n", tlc.Origin, tlc.TxBlock.Transaction.Name)
-					}
-				}
-			}()
-
-		} else if HW3EX2 {
-			go func() {
-				if tlc != nil {
-					r.tlcOut <- tlc
-				}
-			}()
-		}
-	}
 
 	// If the message didn't come from the client: acknowledge the message
 	if sender.String() != "" {

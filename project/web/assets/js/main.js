@@ -17,19 +17,6 @@ $(document).ready(function(){
     let privateMsgButtonEl = $("#private-message-button");
     let privateMsgDiv = $("#send-private-message");
 
-    let selectFileEl = $("#select-file");
-    let shareFileButtonEl = $("#share-file-button");
-    let fileHashEl = $("#file-hash");
-    let fileOriginEl = $("#file-origin");
-    let fileDownloadEl = $("#download-file-button");
-    let fileNameEl = $("#download-file-name");
-
-    let keywordsEl = $("#keywords");
-    let searchEl = $("#search-file-button");
-
-    let resultsEl = $("#results");
-    let downloadResultFilenameEl = $("#download-result-filename")
-
     let currentOrigin = null;
 
     let knownMessages = new Set();
@@ -173,82 +160,4 @@ $(document).ready(function(){
         privateMsgsEl.text("");
         privateOriginEl.text("Messages from " + privateOrigin);
     }
-
-    // get shareable files
-    $.getJSON("files", function(data) {
-        for (i = 0; i < data.files.length; i++) {
-            selectFileEl.append("<option>" + data.files[i] + "</option>");
-        }
-    });
-
-    shareFileButtonEl.click(function(){
-        $.ajax({
-            type: 'POST',
-            url: '/files/share',
-            data: JSON.stringify ({file: selectFileEl.val()}),
-            contentType: "application/json",
-            dataType: 'json'
-        });
-    });
-
-    fileDownloadEl.click(function(){
-        $.ajax({
-            type: 'POST',
-            url: '/files/download',
-            data: JSON.stringify ({hash: fileHashEl.val(), origin: fileOriginEl.val(), filename: fileNameEl.val()}),
-            contentType: "application/json",
-            dataType: 'json'
-        });
-    });
-
-    function search(){
-        // Reset results
-        results = new Map();
-        resultsEl.text("");
-        $.ajax({
-            type: 'POST',
-            url: '/files/search',
-            data: JSON.stringify ({keywords: keywordsEl.val()}),
-            contentType: "application/json",
-            dataType: 'json'
-        });
-    }
-
-    searchEl.click(search);
-    keywordsEl.keyup(function(e){
-        if (e.keyCode == 13) {
-            search();
-        }
-    });
-
-    let results = new Map();
-    function refreshResults() {
-        $.getJSON("/files/search", function(data) {
-            for (i = 0; i < data.results.length; i++) {
-                if (!results.has(data.results[i].name)) {
-                    results.set(data.results[i].name, data.results[i].meta);
-                    resultsEl.append("<li><a href=\"javascript:void(0)\" class='download-result' data-id='" + data.results[i].meta + "'>" + data.results[i].name + "</a></li>");
-
-                    $(".download-result").click(function(){
-                        if (downloadResultFilenameEl.val() == "") {
-                            alert("Please enter a filename for downloading the result!")
-                        }
-                        $.ajax({
-                            type: 'POST',
-                            url: '/files/download',
-                            data: JSON.stringify ({hash: $(this).data("id"), origin: "", filename: downloadResultFilenameEl.val()}),
-                            contentType: "application/json",
-                            dataType: 'json'
-                        });
-                    });
-                }
-            }
-        }).always(function(){
-            setTimeout(refreshResults, 100);
-        })
-    }
-
-    refreshResults();
-
-
 });

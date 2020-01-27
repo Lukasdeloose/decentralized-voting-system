@@ -1,15 +1,12 @@
 package web
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/lukasdeloose/decentralized-voting-system/project/files"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/udp"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
 	"net/http"
-	"strings"
 )
 
 func (ws *WebServer) handleGetNodeID(w http.ResponseWriter, r *http.Request) {
@@ -136,107 +133,4 @@ func (ws *WebServer) handlePostPrivate(w http.ResponseWriter, r *http.Request) {
 
 	// Send message to the Gossiper
 	ws.privateRumorer.UIIn() <- &Message{Text: data.Text, Destination: &origin}
-}
-
-func (ws *WebServer) handlePostShareFile(w http.ResponseWriter, r *http.Request) {
-	// Decode the message and send it to the gossiper over UDP
-	decoder := json.NewDecoder(r.Body)
-	var data struct {
-		File string `json:"file"`
-	}
-	err := decoder.Decode(&data)
-	if err != nil {
-		panic(err)
-	}
-
-	// Send message to the Gossiper
-	ws.fileHandler.UIIn() <- &Message{File: &data.File}
-}
-
-
-func (ws *WebServer) handleGetFiles(w http.ResponseWriter, r *http.Request) {
-	// Get all origins from the private rumorer, encode them, and return them to the GUI client
-	type respStruct struct {
-		Files []string `json:"files"`
-	}
-	resp := respStruct{Files: files.GetFilesFromFilesystem()}
-
-	err := json.NewEncoder(w).Encode(resp)
-	if err != nil {
-		fmt.Printf("ERROR: could net encode origins: %v\n", err)
-	}
-}
-
-func (ws *WebServer) handlePostDownloadFile(w http.ResponseWriter, r *http.Request) {
-	// Decode the message and send it to the gossiper over UDP
-	decoder := json.NewDecoder(r.Body)
-	var data struct {
-		Hash string `json:"hash"`
-		Origin string `json:"origin"`
-		FileName string `json:"filename"`
-	}
-	err := decoder.Decode(&data)
-	if err != nil {
-		panic(err)
-	}
-	req, _ := hex.DecodeString(data.Hash)
-
-	// Send message to the Gossiper
-	msg := &Message{File: &data.FileName, Request: &req}
-	if data.Origin != "" {
-		msg.Destination = &data.Origin
-		ws.fileHandler.UIIn() <- msg
-	} else {
-		ws.searcher.UIIn() <- msg
-	}
-}
-
-
-func (ws *WebServer) handlePostSearchFile(w http.ResponseWriter, r *http.Request) {
-	// Decode the message and send it to the gossiper over UDP
-	decoder := json.NewDecoder(r.Body)
-	var data struct {
-		Keywords string `json:"keywords"`
-	}
-	err := decoder.Decode(&data)
-	if err != nil {
-		panic(err)
-	}
-
-	if data.Keywords != "" {
-		keywordsList := make([]string, 0)
-		for _, keyword := range strings.Split(data.Keywords, ",") {
-			if keyword != "" {
-				keywordsList = append(keywordsList, keyword)
-			}
-		}
-		// Send message to the Gossiper
-		ws.searcher.UIIn() <- &Message{Keywords: &keywordsList}
-	}
-}
-
-
-func (ws *WebServer) handleGetSearchFile(w http.ResponseWriter, r *http.Request) {
-	type Result struct {
-		Name string `json:"name"`
-		Meta string `json:"meta"`
-	}
-	type Results struct {
-		Results []Result `json:"results"`
-	}
-	results := ws.searcher.Results()
-	resultsJSON := Results{make([]Result, len(results))}
-
-	for i, result := range results {
-		resultJSON := Result{
-			Name: result.FileName,
-			Meta: hex.EncodeToString(result.MetafileHash),
-		}
-		resultsJSON.Results[i] = resultJSON
-	}
-
-	err := json.NewEncoder(w).Encode(resultsJSON)
-	if err != nil {
-		fmt.Printf("ERROR: could net encode origins: %v\n", err)
-	}
 }
