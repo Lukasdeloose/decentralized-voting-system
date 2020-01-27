@@ -3,16 +3,16 @@ package blockchain
 import (
 	"bitbucket.org/ustraca/crypto/paillier"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
+	"time"
 )
 
-var Blockchain []Block
 type BlockAck PrivateMessage
 
 type Poll struct {
 	Origin   string
 	Question string
 	Votes    []EncryptedVote
-	Voters	 []string // Hashes of Sciper numbers of people who are allowed to vote
+	Voters   []string // Hashes of Sciper numbers of people who are allowed to vote
 }
 
 type EncryptedVote struct {
@@ -20,6 +20,8 @@ type EncryptedVote struct {
 	PollID uint32
 	Vote   paillier.Cypher
 }
+
+// *** ID's of transactions are 0 (unconfirmed) until they are put on the blockchain *** //
 
 // New votes cast
 type VoteTx struct {
@@ -33,13 +35,14 @@ type PollTx struct {
 	ID   uint32
 }
 
-
 type SciperTx struct {
+	ID uint32
 	// TODO Thomas
 }
 
 // New users registered
 type RegisterTx struct {
+	ID uint32
 	// TODO Thomas
 }
 
@@ -48,12 +51,12 @@ type Transactions struct {
 	Votes     []VoteTx
 	Polls     []PollTx
 	Registers []RegisterTx
-	Scipers[] []SciperTx
+	Scipers   [] []SciperTx
 }
 
 type Block struct {
 	Index          int
-	Timestamp      string
+	Timestamp      time.Time
 	Transactions   Transactions
 	PaillierPublic paillier.PublicKey
 	Difficulty     int
@@ -69,4 +72,3 @@ type BlockMessage struct {
 	Block       Block
 	VectorClock *StatusPacket
 }
-
