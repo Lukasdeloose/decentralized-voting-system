@@ -24,8 +24,6 @@ var (
 	routeRumoring int
 
 	debug         bool
-	hw3ex2		  bool
-	hw3ex3        bool
 	N             int
 	stubbornTimeout int
 	hopLimit	 int
@@ -43,11 +41,9 @@ func main() {
 	flag.IntVar(&antiEntropy, "antiEntropy", 10, "Timeout for running anti entropy")
 	flag.IntVar(&routeRumoring, "rtimer", 0, "Timeout in seconds to send route rumors. 0 (default) "+
 		"means disable sending route rumors.")
-	flag.BoolVar(&hw3ex2, "hw3ex2", false, "Run in HW3 EX2 mode")
 	flag.IntVar(&N, "N", -1, "Total number of peers in the network")
 	flag.IntVar(&stubbornTimeout, "stubbornTimeout", 5, "Timeout for resending txn BlockPublish")
 	flag.IntVar(&hopLimit, "hopLimit", 10, "HopLimit for point to point messages")
-	flag.BoolVar(&hw3ex3, "hw3ex3", false, "Run peerster in HW3 - EX3 mode")
 	flag.Parse()
 
 	// Seed random generator
@@ -63,16 +59,11 @@ func main() {
 			peersSet.Add(UDPAddr{Addr: peer})
 		}
 	}
-	if N == -1 && hw3ex2 {
-		log.Fatal("Please provide the total number of peers in the network")
-	}
 
 	// Set constants
 	Debug = debug
-	HW1 = false
+	HW1 = true
 	HW2 = true
-	HW3EX2 = hw3ex2
-	HW3EX3 = hw3ex3
 
 	// Initialize and run gossiper
 	goss := NewGossiper(name, peersSet, simple, uiPort, gossipAddr, antiEntropy, routeRumoring, N, stubbornTimeout, hopLimit)

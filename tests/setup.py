@@ -136,8 +136,12 @@ class Peerster:
                                                        stdout=asyncio.subprocess.PIPE,
                                                        cwd=os.path.dirname(self.exec_path))
 
+        # Make sure the directory for the output files exists
+        if not os.path.isdir("out"):
+            os.makedirs("out")
+
         # read line (sequence of bytes ending with b'\n') asynchronously
-        with open(f"out/{self.name}.out", "w+") as f:
+        with open(os.path.join("out", f"{self.name}.out"), "w+") as f:
             while True:
                 try:
                     line = await asyncio.wait_for(process.stdout.readline(), .1)

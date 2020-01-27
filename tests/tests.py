@@ -2,18 +2,19 @@ import asyncio
 import hashlib
 import numpy as np
 import pytest
+import os
 
 from setup import Setup
 
 
-PEERSTER_ROOT = "/home/thomas/go/src/github.com/lukasdeloose/decentralized-voting-system/project/project"
+PEERSTER_ROOT = os.path.join("..", "project", "project")
 
 
 @pytest.mark.skip(reason="Use wrappers around these async methods")
 class Tests:
     @staticmethod
     async def test_private_messages():
-        NUM_PEERS = 100
+        NUM_PEERS = 50
 
         s = Setup.create_line_setup(PEERSTER_ROOT, NUM_PEERS)
 
@@ -22,7 +23,7 @@ class Tests:
 
         for peerster in s.peersters:
             peerster.send_public_message(f" ")
-        await asyncio.sleep(1)
+        await asyncio.sleep(5)
 
         msg_map = {}
         for i, peerster in enumerate(s.peersters):
@@ -35,7 +36,7 @@ class Tests:
 
             peerster.send_private_message(f"Test{i}",
                                           f"testPeer{other}")
-        await asyncio.sleep(1)
+        await asyncio.sleep(5)
 
         await s.stop_all()
 
@@ -51,7 +52,7 @@ class Tests:
 
     @staticmethod
     async def test_public_messages():
-        NUM_PEERS = 100
+        NUM_PEERS = 50
 
         s = Setup.create_line_setup(PEERSTER_ROOT, NUM_PEERS)
 
@@ -60,7 +61,7 @@ class Tests:
 
         for i, peerster in enumerate(s.peersters):
             peerster.send_public_message(f"Test{i}")
-        await asyncio.sleep(1)
+        await asyncio.sleep(5)
 
         await s.stop_all()
 

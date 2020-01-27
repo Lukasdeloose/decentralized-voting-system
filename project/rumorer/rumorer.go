@@ -135,10 +135,10 @@ func (r *Rumorer) runPeer() {
 				r.peers.Add(address)
 
 				// Print logging info
-				if gossip.Rumor.Text != "" && (HW1 || HW2) {
-					fmt.Printf("RUMOR origin %v from %v ID %v contents %v\n",
-						gossip.Rumor.Origin, address, gossip.Rumor.ID, gossip.Rumor.Text)
-				}
+				//if gossip.Rumor.Text != "" && (HW1 || HW2) {
+				//	fmt.Printf("RUMOR origin %v from %v ID %v contents %v\n",
+				//		gossip.Rumor.Origin, address, gossip.Rumor.ID, gossip.Rumor.Text)
+				//}
 				if HW1 && gossip.Rumor != nil && gossip.Rumor.Text != "" {
 					fmt.Printf("PEERS %v\n", r.peers)
 				}

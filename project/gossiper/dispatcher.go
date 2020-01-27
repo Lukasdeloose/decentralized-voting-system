@@ -108,16 +108,20 @@ func (d *Dispatcher) Run() {
 
 func (d *Dispatcher) dispatchFromPeer(gossip *AddrGossipPacket) {
 	if gossip.Gossip.Rumor != nil {
+		if gossip.Gossip.Rumor.Text != "" {
+			fmt.Printf("RUMOR origin %v from %v ID %v contents %v\n", gossip.Gossip.Rumor.Origin, gossip.Address, gossip.Gossip.Rumor.ID, gossip.Gossip.Rumor.Text)
+		}
 		d.PrivateRumorerGossipIn <- gossip
 
 		d.RumorerGossipIn <- gossip
 
 	}
-	if gossip.Gossip.Status != nil || gossip.Gossip.Simple != nil {
+
+	if gossip.Gossip.Status != nil {
 		d.RumorerGossipIn <- gossip
 	}
 
-	if gossip.Gossip.Private != nil || gossip.Gossip.DataReply != nil || gossip.Gossip.DataRequest != nil || gossip.Gossip.Ack != nil {
+	if gossip.Gossip.Private != nil {
 		d.PrivateRumorerGossipIn <- gossip
 	}
 }

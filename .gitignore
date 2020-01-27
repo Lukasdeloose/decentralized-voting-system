@@ -18,5 +18,12 @@
 project/project
 project/client/client
 
+# Ignore pychache for py tests
+tests/.pytest_chache
+tests/__pycache__
+
+# Ignore output directory for tests files
+tests/out
+
 # Dependency directories (remove the comment below to include it)
 # vendor/
