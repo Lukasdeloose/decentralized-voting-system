@@ -11,8 +11,25 @@ type BlockAck PrivateMessage
 type Poll struct {
 	Origin   string
 	Question string
-	Votes    []EncryptedVote
 	Voters   []string // Hashes of Sciper numbers of people who are allowed to vote
+}
+
+func (poll Poll) isEqual(poll2 Poll) bool {
+	if poll.Origin != poll2.Origin {
+		return false
+	}
+	if poll.Question != poll.Question {
+		return false
+	}
+	if len(poll.Voters) != len(poll2.Voters) {
+		return false
+	}
+	for i := 0; i < len(poll.Voters); i++ {
+		if poll.Voters[i] != poll2.Voters[i] {
+			return false
+		}
+	}
+	return true
 }
 
 type EncryptedVote struct {
@@ -35,11 +52,6 @@ type PollTx struct {
 	ID   uint32
 }
 
-type SciperTx struct {
-	ID uint32
-	// TODO Thomas
-}
-
 // New users registered
 type RegisterTx struct {
 	ID uint32
@@ -51,7 +63,21 @@ type Transactions struct {
 	Votes     []VoteTx
 	Polls     []PollTx
 	Registers []RegisterTx
-	Scipers   [] []SciperTx
+}
+
+func (tx Transactions) toString() string {
+	str := ""
+	for _, vote := range tx.Votes {
+		str += string(vote.ID) + vote.Vote.Origin + string(vote.Vote.PollID) + vote.Vote.Vote.String()
+	}
+	for _, poll := range tx.Polls {
+		str += string(poll.ID) + poll.Poll.Origin + poll.Poll.Question
+		for _, voter := range poll.Poll.Voters {
+			str += voter
+		}
+	}
+	// TODO: Registers
+	return str
 }
 
 type Block struct {
