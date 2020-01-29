@@ -12,10 +12,13 @@ $(document).ready(function(){
     function refreshPolls(){
         $.getJSON("polls", function(data) {
             // Remove the elements that dont appear in the updated polls
-            updatedPolls = new Set(data.polls);
+            updatedPolls = new Set(data.polls.map(function(poll) {
+                return JSON.stringify(poll);
+            }));
             pollsList = pollsList.filter(function(poll) {
                 return updatedPolls.has(JSON.stringify(poll));
             });
+            console.log(pollsList);
 
             // Add the new elements from the updated polls
             for (i = 0; i < data.polls.length; i++) {
