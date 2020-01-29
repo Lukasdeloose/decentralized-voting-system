@@ -4,6 +4,7 @@ import (
 	. "github.com/lukasdeloose/decentralized-voting-system/project/constants"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/udp"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
+	"log"
 	"math/rand"
 	"sync"
 
@@ -32,6 +33,7 @@ type Rumorer struct {
 	// The rumorer communicates through these channels
 	in   chan *AddrGossipPacket
 	out  chan *AddrGossipPacket
+	localOut chan MongerableMessage
 	uiIn chan *Message
 
 	// State of this peer, this contains the vector clock and messages
@@ -49,7 +51,7 @@ type Rumorer struct {
 }
 
 func NewRumorer(name string, peers *Set,
-	in chan *AddrGossipPacket, out chan *AddrGossipPacket, uiIn chan *Message, antiEntropy int) *Rumorer {
+	in chan *AddrGossipPacket, out chan *AddrGossipPacket, localOut chan MongerableMessage, uiIn chan *Message, antiEntropy int) *Rumorer {
 
 	return &Rumorer{
 		name:              name,
@@ -60,6 +62,7 @@ func NewRumorer(name string, peers *Set,
 		idMutex:           &sync.RWMutex{},
 		in:                in,
 		out:               out,
+		localOut:          localOut,
 		uiIn:              uiIn,
 		state:             NewState(out),
 		ackChans:          make(map[UDPAddr]map[msgID]chan bool),
@@ -85,35 +88,12 @@ func (r *Rumorer) AddPeer(peer UDPAddr) {
 	r.peers.Add(peer)
 }
 
-func (r *Rumorer) runClient() {
-	for {
-		// Wait for and process incoming packets from the client
-		msg := <-r.uiIn
-
-		if HW1 && msg.Text != ""{
-			fmt.Printf("CLIENT MESSAGE %s\n", msg.Text)
-			fmt.Printf("PEERS %s\n", r.peers)
-		}
-
-		// Create a new rumor message, and pass it to the rumor handler
-		r.idMutex.Lock()
-		rumor := &RumorMessage{
-			Origin: r.name,
-			ID:     r.id,
-			Text:   msg.Text,
-		}
-		r.id += 1
-		r.idMutex.Unlock()
-		go r.handleRumor(rumor, UDPAddr{}, false)
-	}
-}
 
 func (r *Rumorer) UIIn() chan *Message {
 	return r.uiIn
 }
 
 func (r *Rumorer) Run() {
-	go r.runClient()
 	go r.runPeer()
 
 	if r.antiEntropyTimout != 0 {
@@ -130,40 +110,41 @@ func (r *Rumorer) runPeer() {
 
 			// Dispatch packet according to type
 			mongerableMsg := gossip.ToMongerableMessage()
+
 			if mongerableMsg != nil {
 				// Expand peers list
-				r.peers.Add(address)
-
-				// Print logging info
-				//if gossip.Rumor.Text != "" && (HW1 || HW2) {
-				//	fmt.Printf("RUMOR origin %v from %v ID %v contents %v\n",
-				//		gossip.Rumor.Origin, address, gossip.Rumor.ID, gossip.Rumor.Text)
-				//}
-				if HW1 && gossip.Rumor != nil && gossip.Rumor.Text != "" {
-					fmt.Printf("PEERS %v\n", r.peers)
+				if address.String() != "" {
+					r.peers.Add(address)
+				} else {
+					// The message is ours: if it does not have an ID yet: give it one
+					if mongerableMsg.GetID() == 0 {
+						r.idMutex.Lock()
+						mongerableMsg.SetID(r.id)
+						r.id += 1
+						r.idMutex.Unlock()
+					}
 				}
 
+				if gossip.Rumor != nil {
+					// Print logging info
+					r.printRumor(gossip.Rumor, address)
+				} else if gossip.Transaction != nil {
+					r.printTx(gossip.Transaction)
+				}
+
+				// Handle the message
 				r.handleRumor(mongerableMsg, address, false)
 
 			} else if gossip.Status != nil {
-				msg := gossip.Status
-
 				// Expand peers list
 				r.peers.Add(address)
 
 				// Print logging info
-				if HW1 {
-					toPrint := ""
-					toPrint += fmt.Sprintf("STATUS from %v ", address)
-					for _, entry := range msg.Want {
-						toPrint += fmt.Sprintf("peer %v nextID %v ", entry.Identifier, entry.NextID)
-					}
-					toPrint += fmt.Sprintf("\n")
-					toPrint += fmt.Sprintf("PEERS %v\n", r.peers)
-					fmt.Printf(toPrint)
-				}
+				r.printStatus(gossip.Status, address)
 
-				r.handleStatus(msg, address)
+				// Handle the message
+				r.handleStatus(gossip.Status, address)
+
 			} // Ignore SimpleMessage
 		}()
 	}
@@ -236,15 +217,25 @@ func (r *Rumorer) startMongering(msg MongerableMessage, except UDPAddr, coinFlip
 
 func (r *Rumorer) handleRumor(msg MongerableMessage, sender UDPAddr, forceResend bool) {
 	// Update peer state, and check if the message was a message we were looking for
-	accepted := r.state.Update(msg)
+	newMsgs := r.state.Update(msg)
+
+	// Dispatch (async) the newMsgs for processing
+	go func() {
+		for _, msg := range newMsgs {
+			if Debug {
+				fmt.Printf("[DEBUG] DISPATCHING MONGERABLE ID %v ORIGIN %v\n", msg.GetID(), msg.GetOrigin())
+			}
+			r.localOut <- msg
+		}
+	}()
 
 	// If the message didn't come from the client: acknowledge the message
 	if sender.String() != "" {
 		r.state.Send(sender)
 	}
 
-	if accepted || forceResend {
-		if Debug && accepted {
+	if len(newMsgs) > 0 || forceResend {
+		if Debug && len(newMsgs) > 0 {
 			fmt.Printf("[DEBUG] MONGERABLE MESSAGE accepted\n")
 		}
 		if Debug && forceResend {
@@ -281,6 +272,10 @@ func (r *Rumorer) handleStatus(msg *StatusPacket, sender UDPAddr) {
 		if HW1 || HW2 {
 			// We're actually not, but this is needed as output to indicate that we sent a rumor message
 			fmt.Printf("MONGERING with %v\n", sender)
+		}
+		if toSend == nil {
+			log.Fatalf("TOSEND IS NIL for ID %v ORIGIN %v MYORIGIN %v\n" +
+				"NEXTID: %v, MSGS: %v\n", iHave.NextID, iHave.Identifier, r.name, r.state.state[iHave.Identifier], r.state.messages[iHave.Identifier])
 		}
 		r.send(toSend.ToGossip(), sender)
 
@@ -351,4 +346,44 @@ func (r *Rumorer) sendRumorWait(msg MongerableMessage, to UDPAddr) bool {
 func (r *Rumorer) send(packet *GossipPacket, addr UDPAddr) {
 	// Send gossip packet to addr
 	r.out <- &AddrGossipPacket{addr, packet}
+}
+
+
+func (r *Rumorer) printStatus(msg *StatusPacket, address UDPAddr) {
+	if HW1 {
+		toPrint := ""
+		toPrint += fmt.Sprintf("STATUS from %v ", address)
+		for _, entry := range msg.Want {
+			toPrint += fmt.Sprintf("peer %v nextID %v ", entry.Identifier, entry.NextID)
+		}
+		toPrint += fmt.Sprintf("\n")
+		toPrint += fmt.Sprintf("PEERS %v\n", r.peers)
+		fmt.Printf(toPrint)
+	}
+}
+
+
+func (r *Rumorer) printRumor(msg *RumorMessage, address UDPAddr) {
+	if address.String() == "" {
+		fmt.Printf("CLIENT MESSAGE %v\n", msg.Text)
+	} else {
+		if msg.Text != "" && (HW1 || HW2) {
+			fmt.Printf("RUMOR origin %v from %v ID %v contents %v\n",
+				msg.Origin, address, msg.ID, msg.Text)
+		}
+	}
+
+	if msg.Text != "" && HW1{
+		fmt.Printf("PEERS %v\n", r.peers)
+	}
+}
+
+func (r *Rumorer) printTx(t *Transaction) {
+	if t.PollTx != nil {
+		fmt.Printf("POLL TRANSACTION ID %v ORIGIN %v\n", t.ID, t.Origin)
+	} else if t.VoteTx != nil {
+		fmt.Printf("VOTE TRANSACTION ID %v ORIGIN %v\n", t.ID, t.Origin)
+	} else if t.RegisterTx != nil {
+		fmt.Printf("REGISTER TRANSACTION ID %v ORIGIN %v\n", t.ID, t.Origin)
+	}
 }

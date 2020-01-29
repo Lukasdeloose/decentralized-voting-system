@@ -1,14 +1,15 @@
 package blockchain
 
 import (
-	"bitbucket.org/ustraca/crypto/paillier"
 	"fmt"
+	"github.com/Roasbeef/go-go-gadget-paillier"
 	"sync"
 	"time"
 )
 
 const numTxBeforeMine = 5
 const numTxBeforeGossip = 1
+
 
 type Miner struct {
 	blockchain       []Block
@@ -20,7 +21,7 @@ type Miner struct {
 	stopMining       chan int // ID of block where to stop mining for
 }
 
-func newMiner() Miner {
+func NewMiner() Miner {
 	return Miner{
 		blockchain:       make([]Block, 0),
 		difficulty:       1,
@@ -92,11 +93,12 @@ func (miner Miner) removeConfirmedTx(tx Transactions) {
 	}
 
 	// Polls
+	// TODO: check based on ID?
 	newPolls := miner.newTransactions.Polls[:0]
 	for _, unconfirmedPoll := range miner.newTransactions.Polls {
 		found := false
 		for _, confirmedPoll := range tx.Polls {
-			if confirmedPoll.Poll.isEqual(unconfirmedPoll.Poll) {
+			if confirmedPoll.Poll.IsEqual(unconfirmedPoll.Poll) {
 				found = true
 			}
 		}

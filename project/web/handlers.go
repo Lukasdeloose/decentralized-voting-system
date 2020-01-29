@@ -134,3 +134,29 @@ func (ws *WebServer) handlePostPrivate(w http.ResponseWriter, r *http.Request) {
 	// Send message to the Gossiper
 	ws.privateRumorer.UIIn() <- &Message{Text: data.Text, Destination: &origin}
 }
+
+
+func (ws *WebServer) handleGetPolls(w http.ResponseWriter, r *http.Request) {
+	// Get all peers from the rumorer, encode them, and return them to the GUI client
+	type PollJSON struct {
+		Question string `json:"question"`
+		Origin string `json:"origin"`
+		ID uint32`json:"id"`
+	}
+	type respStruct struct {
+		Polls []PollJSON `json:"polls"`
+	}
+	polls := ws.voteRumorer.Polls()
+	resp := respStruct{Polls: make([]PollJSON, len(polls))}
+	for i, poll := range polls {
+		resp.Polls[i] = PollJSON{
+			Question: poll.Poll.Question,
+			Origin:   poll.Poll.Origin,
+			ID:       poll.ID,
+		}
+	}
+	err := json.NewEncoder(w).Encode(resp)
+	if err != nil {
+		fmt.Printf("ERROR: could net encode polls: %v\n", err)
+	}
+}

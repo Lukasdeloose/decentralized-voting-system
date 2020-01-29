@@ -15,7 +15,6 @@ type State struct {
 
 	// All accepted messages, indexed by Origin
 	messages      map[string]map[uint32] MongerableMessage
-	messagesMutex *sync.RWMutex
 
 	// Outgoing communication channel to send StatePackets
 	out chan *AddrGossipPacket
@@ -26,12 +25,14 @@ func NewState(out chan *AddrGossipPacket) *State {
 		state:         make(map[string]uint32),
 		stateMutex:    &sync.RWMutex{},
 		messages:      make(map[string]map[uint32] MongerableMessage),
-		messagesMutex: &sync.RWMutex{},
 		out:           out,
 	}
 }
 
 func (s *State) Messages() []*RumorMessage {
+	s.stateMutex.RLock()
+	defer s.stateMutex.RUnlock()
+
 	// Return messages as list (not map)
 	res := make([]*RumorMessage, 0)
 	for _, msgs := range s.messages {
@@ -47,10 +48,10 @@ func (s *State) Messages() []*RumorMessage {
 
 func (s *State) Message(origin string, id uint32) (rumor MongerableMessage) {
 	// Return message
-	s.messagesMutex.RLock()
-	rumor = s.messages[origin][id]
-	s.messagesMutex.RUnlock()
-	return rumor
+	s.stateMutex.RLock()
+	defer s.stateMutex.RUnlock()
+
+	return s.messages[origin][id]
 }
 
 func (s *State) Compare(msg *StatusPacket) (iHave *PeerStatus, youHave *PeerStatus) {
@@ -88,14 +89,16 @@ func (s *State) Compare(msg *StatusPacket) (iHave *PeerStatus, youHave *PeerStat
 	// origins that the peer does not now about: send the message with ID 1
 	for origin, _ := range s.state {
 		if !origins[origin] {
-			iHave = &PeerStatus{
-				Identifier: origin,
-				NextID:     1, // This is the ID of the message I have
+			if s.state[origin] > 1 {
+				iHave = &PeerStatus{
+					Identifier: origin,
+					NextID:     1, // This is the ID of the message I have
+				}
+				if Debug {
+					fmt.Printf("[DEBUG] CompareStatus: I AM IN FRONT\n")
+				}
+				return
 			}
-			if Debug {
-				fmt.Printf("[DEBUG] CompareStatus: I AM IN FRONT\n")
-			}
-			return
 		}
 	}
 
@@ -119,7 +122,7 @@ func (s *State) Compare(msg *StatusPacket) (iHave *PeerStatus, youHave *PeerStat
 	return
 }
 
-func (s *State) Update(msg MongerableMessage) (res bool) {
+func (s *State) Update(msg MongerableMessage) (res []MongerableMessage) {
 	s.stateMutex.Lock()
 	defer s.stateMutex.Unlock()
 
@@ -129,26 +132,27 @@ func (s *State) Update(msg MongerableMessage) (res bool) {
 	}
 	if curr <= msg.GetID() {
 		// Save the message
-		s.messagesMutex.Lock()
 		if _, ok := s.messages[msg.GetOrigin()]; !ok {
 			s.messages[msg.GetOrigin()] = make(map[uint32] MongerableMessage)
 		}
 		s.messages[msg.GetOrigin()][msg.GetID()] = msg
-		s.messagesMutex.Unlock()
 
 		// Update the vector clock
-		s.messagesMutex.RLock()
-		_, ok := s.messages[msg.GetOrigin()][curr]
+		msgs := make([]MongerableMessage, 0)
+		ok := true
+		var m MongerableMessage
 		for ok {
+			m, ok = s.messages[msg.GetOrigin()][curr]
+			if ok {
+				msgs = append(msgs, m)
+			}
 			curr += 1
-			_, ok = s.messages[msg.GetOrigin()][curr]
-			s.state[msg.GetOrigin()] = curr
 		}
-		s.messagesMutex.RUnlock()
+		s.state[msg.GetOrigin()] = curr-1
 
-		res = true
+		res = msgs
 	} else {
-		res = false
+		res = make([]MongerableMessage, 0)
 	}
 	return res
 }
