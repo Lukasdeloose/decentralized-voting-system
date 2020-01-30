@@ -168,6 +168,8 @@ class Peerster:
                             self._update_in_sync_with(line[len("IN SYNC WITH "):])
                         elif self._starts_with(line, "RUMOR"):
                             m = re.match(r"RUMOR origin ([a-zA-Z0-9]+) from ([a-zA-Z0-9.:]+) ID ([0-9]+) contents ?(.*)$", line)
+                            if m is None:
+                                raise AssertionError(f"'{line}' is not a correct format")
                             self._update_public_messages(m.groups()[0], m.groups()[2], m.groups()[3])
                         elif self._starts_with(line, "PRIVATE"):
                             m = re.match(r"PRIVATE origin ([a-zA-Z0-9]+) hop-limit ([0-9]+) contents ?(.*)$",

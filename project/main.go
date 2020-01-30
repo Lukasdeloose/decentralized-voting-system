@@ -19,7 +19,6 @@ var (
 	gossipAddr    string
 	name          string
 	peers         string
-	simple        bool
 	antiEntropy   int
 	routeRumoring int
 
@@ -36,7 +35,6 @@ func main() {
 		"ip:port for the gossiper (default '127.0.0.1:5000")
 	flag.StringVar(&name, "name", "", "name of the gossiper")
 	flag.StringVar(&peers, "peers", "", "comma seperated list of peers in the from ip:port")
-	flag.BoolVar(&simple, "simple", false, "run gossiper in simple broadcast mode")
 	flag.BoolVar(&debug, "debug", false, "print debug information")
 	flag.IntVar(&antiEntropy, "antiEntropy", 10, "Timeout for running anti entropy")
 	flag.IntVar(&routeRumoring, "rtimer", 0, "Timeout in seconds to send route rumors. 0 (default) "+
@@ -66,7 +64,7 @@ func main() {
 	HW2 = true
 
 	// Initialize and run gossiper
-	goss := NewGossiper(name, peersSet, simple, uiPort, gossipAddr, antiEntropy, routeRumoring, N, stubbornTimeout, hopLimit)
+	goss := NewGossiper(name, peersSet, uiPort, gossipAddr, antiEntropy, routeRumoring, N, stubbornTimeout, hopLimit)
 	goss.Run()
 
 	// Wait forever

@@ -1,6 +1,5 @@
 import asyncio
 import hashlib
-import numpy as np
 import pytest
 import os
 
@@ -70,7 +69,8 @@ class Tests:
             for j, other_peerster in enumerate(s.peersters):
                 if i == j:
                     continue
-                assert peerster.public_messages[f"testPeer{j}"] == {1: f"Test{j}"}
+                assert peerster.public_messages[f"testPeer{j}"] == {1: f"Test{j}"} or\
+                       peerster.public_messages[f"testPeer{j}"] == {2: f"Test{j}"}
 
     @staticmethod
     async def test_file_upload():
