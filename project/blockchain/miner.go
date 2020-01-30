@@ -123,7 +123,8 @@ func (miner Miner) validBlock(block *Block) bool {
 
 // Calculates the difficulty (amount of 0's necessary for the hashing problem) for the PoW algorithm
 func (miner Miner) adaptDifficulty() {
-	// TODO
+	//prevTime := miner.blockchain.Blocks[miner.blockchain.length()-10].Timestamp
+
 }
 
 // Take the current unconfirmed transactions and try to mine new block from these

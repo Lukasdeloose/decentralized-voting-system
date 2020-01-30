@@ -64,6 +64,10 @@ func (b *Blockchain) lastBlock() *Block {
 	return b.Blocks[len(b.Blocks)-1]
 }
 
+func (b *Blockchain) length() int {
+	return len(b.Blocks)
+}
+
 func (b *Blockchain) Run() {
 	go func() {
 		for t := range b.Transactions {
