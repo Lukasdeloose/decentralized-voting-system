@@ -206,8 +206,6 @@ func (miner Miner) mine(newBlock *Block) *Block {
 		newBlock.Nonce = hex
 		if !hashValid(calculateHash(newBlock), newBlock.Difficulty) {
 			fmt.Println(calculateHash(newBlock), " do more work!")
-			time.Sleep(time.Second)
-			continue
 		} else {
 			fmt.Println(calculateHash(newBlock), " work done!")
 			newBlock.Hash = calculateHash(newBlock)
