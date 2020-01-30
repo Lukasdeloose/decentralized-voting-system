@@ -37,6 +37,8 @@ type Dispatcher struct {
 	VoteRumorerUIIn chan *VotingMessage
 	VoteRumorerIn   chan *AddrGossipPacket
 
+	TransactionRumorerIn chan *Transaction
+
 	BlockRumorerIn  chan *Block
 	BlockRumorerOut chan *Block
 }
@@ -60,8 +62,10 @@ func NewDispatcher(name string, uiPort string, gossipAddr string) *Dispatcher {
 		VoteRumorerUIIn: make(chan *VotingMessage),
 		VoteRumorerIn:   make(chan *AddrGossipPacket),
 
-		BlockRumorerIn: make(chan *Block),
+		BlockRumorerIn:  make(chan *Block),
 		BlockRumorerOut: make(chan *Block),
+
+		TransactionRumorerIn: make(chan *Transaction),
 	}
 }
 
@@ -109,6 +113,7 @@ func (d *Dispatcher) Run() {
 			// Process public messages for different parts of the application
 			if mongerable.ToGossip().Transaction != nil {
 				d.VoteRumorerIn <- &AddrGossipPacket{Gossip: mongerable.ToGossip()}
+				d.TransactionRumorerIn <- mongerable.ToGossip().Transaction
 			} else if mongerable.ToGossip().Block != nil {
 				d.BlockRumorerIn <- mongerable.ToGossip().Block
 			}

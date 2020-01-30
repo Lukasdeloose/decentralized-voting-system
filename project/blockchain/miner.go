@@ -16,18 +16,18 @@ type Miner struct {
 	blockchain       *Blockchain
 	forkedBlockchain *Blockchain
 	difficulty       int
-	transActionsIn   chan Transactions
+	transActionsIn   chan *Transaction
 	blocksIn         chan *Block
 	blocksOut        chan *AddrGossipPacket
 	stopMining       chan uint32 // ID of block where to stop mining for
 	fork             bool
 }
 
-func NewMiner(blockchain *Blockchain, blockIn chan *Block, blocksOut chan *AddrGossipPacket) *Miner {
+func NewMiner(blockchain *Blockchain, transActionsIn chan *Transaction, blockIn chan *Block, blocksOut chan *AddrGossipPacket) *Miner {
 	return &Miner{
 		blockchain:     blockchain,
 		difficulty:     1,
-		transActionsIn: make(chan Transactions),
+		transActionsIn: transActionsIn,
 		blocksIn:       blockIn,
 		blocksOut:      blocksOut,
 		stopMining:     make(chan uint32, 10),
@@ -41,7 +41,7 @@ func (miner Miner) Run() {
 
 func (miner Miner) listenTransactions() {
 	for tx := range miner.transActionsIn {
-		miner.blockchain.addUnconfirmedTransactions(tx)
+		miner.blockchain.addUnconfirmedTransaction(*tx)
 		numTrans := len(miner.blockchain.unconfirmedTransactions.Polls) + len(miner.blockchain.unconfirmedTransactions.Registers) + len(miner.blockchain.unconfirmedTransactions.Votes)
 		if numTrans > numTxBeforeMine {
 			miner.generateBlock()

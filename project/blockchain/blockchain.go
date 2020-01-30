@@ -111,6 +111,24 @@ func (b *Blockchain) addUnconfirmedTransactions(tx Transactions) {
 	}
 }
 
+func (b *Blockchain) addUnconfirmedTransaction(tx Transaction) {
+	b.TransactionsLock.Lock()
+	defer b.TransactionsLock.Unlock()
+
+	if tx.PollTx != nil {
+		b.unconfirmedTransactions.Polls = append(b.unconfirmedTransactions.Polls, *tx.PollTx)
+	}
+	if tx.VoteTx != nil {
+		b.unconfirmedTransactions.Votes = append(b.unconfirmedTransactions.Votes, *tx.VoteTx)
+	}
+	if tx.RegisterTx != nil {
+		b.unconfirmedTransactions.Registers = append(b.unconfirmedTransactions.Registers, *tx.RegisterTx)
+	}
+	if tx.ResultTx != nil {
+		b.unconfirmedTransactions.Results = append(b.unconfirmedTransactions.Results, *tx.ResultTx)
+	}
+}
+
 func (b *Blockchain) removeConfirmedTx(tx Transactions) {
 	b.TransactionsLock.Lock()
 	defer b.TransactionsLock.Unlock()
