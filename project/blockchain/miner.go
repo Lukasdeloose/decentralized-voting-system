@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const numTxBeforeMine = 5
+const numTxBeforeMine = 2
 const numTxBeforeGossip = 1
 const secondsPerBlock = 10 * time.Second
 

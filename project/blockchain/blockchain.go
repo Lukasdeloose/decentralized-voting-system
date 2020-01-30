@@ -93,14 +93,6 @@ func (b *Blockchain) length() int {
 	return len(b.Blocks)
 }
 
-func (b *Blockchain) Run() {
-	go func() {
-		for t := range b.Transactions {
-			b.AddTransaction(t)
-		}
-	}()
-}
-
 func (b *Blockchain) addUnconfirmedTransactions(tx Transactions) {
 	b.TransactionsLock.Lock()
 	defer b.TransactionsLock.Unlock()

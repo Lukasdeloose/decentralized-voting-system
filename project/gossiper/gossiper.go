@@ -26,7 +26,7 @@ type Gossiper struct {
 
 	miner *Miner
 
-	N int
+	N               int
 	stubbornTimeout int
 }
 
@@ -52,17 +52,16 @@ func NewGossiper(name string, peers *Set, uiPort string, gossipAddr string,
 	// Create the webserver for interacting with the rumorer
 	webServer := NewWebServer(rumorer, privateRumorer, voteRumorer, blockchain, uiPort)
 
-
 	return &Gossiper{
-		Dispatcher:     disp,
-		WebServer:      webServer,
-		Rumorer:        rumorer,
-		PrivateRumorer: privateRumorer,
-		VoteRumorer:    voteRumorer,
-		Blockchain:     blockchain,
-		miner: 			miner,
-		name:           name,
-		N:				N,
+		Dispatcher:      disp,
+		WebServer:       webServer,
+		Rumorer:         rumorer,
+		PrivateRumorer:  privateRumorer,
+		VoteRumorer:     voteRumorer,
+		Blockchain:      blockchain,
+		miner:           miner,
+		name:            name,
+		N:               N,
 		stubbornTimeout: stubbornTimeout,
 	}
 }
@@ -72,7 +71,6 @@ func (g *Gossiper) Run() {
 	g.Rumorer.Run()
 	g.PrivateRumorer.Run()
 	g.VoteRumorer.Run()
-	g.Blockchain.Run()
 	g.miner.Run()
 
 	if g.WebServer != nil {
