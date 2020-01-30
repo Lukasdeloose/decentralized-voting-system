@@ -12,12 +12,7 @@ import (
 	"time"
 )
 
-// DUMMY Blockchain implementation
-
-type id struct {
-	Origin string
-	Id     uint32
-}
+// Blockchain implementation
 
 type Blockchain struct {
 	Transactions            chan *Transaction
@@ -28,12 +23,14 @@ type Blockchain struct {
 	nextRegisterId uint32
 	nextVoteId     uint32
 	nextPollId     uint32
+	nextResultId   uint32
 
 	difficulty int
 
 	Registry []*RegisterTx
-	Votes    map[uint32][]*VoteTx // votes by pollID
+	Votes    map[uint32][]*VoteTx // Votes by pollID
 	Polls    []*PollTx
+	Results  map[uint32]*ResultTx // Results by pollID
 	mutex    *sync.RWMutex
 }
 
@@ -72,6 +69,13 @@ func (b *Blockchain) GetPoll(pollId uint32) *PollTx {
 	return nil
 }
 
+func (b *Blockchain) GetResult(pollId uint32) *ResultTx {
+	b.mutex.RLock()
+	defer b.mutex.RUnlock()
+
+	return b.Results[pollId]
+}
+
 func (b *Blockchain) lastBlock() *Block {
 	return b.Blocks[len(b.Blocks)-1]
 }
@@ -100,6 +104,9 @@ func (b *Blockchain) addUnconfirmedTransactions(tx Transactions) {
 	}
 	if tx.Registers != nil {
 		b.unconfirmedTransactions.Registers = append(b.unconfirmedTransactions.Registers, tx.Registers...)
+	}
+	if tx.Results != nil {
+		b.unconfirmedTransactions.Results = append(b.unconfirmedTransactions.Results, tx.Results...)
 	}
 }
 
@@ -138,7 +145,7 @@ func (b *Blockchain) removeConfirmedTx(tx Transactions) {
 	}
 	b.unconfirmedTransactions.Polls = newPolls
 
-	// TODO: registers
+	// TODO: registers and results
 }
 
 func (b *Blockchain) GetPolls() []*PollTx {
@@ -167,6 +174,9 @@ func (b *Blockchain) AddTransaction(t *Transaction) {
 	} else if t.RegisterTx != nil {
 		b.Registry = append(b.Registry, t.RegisterTx)
 		fmt.Printf("BLOCKCHAIN ADD registerTx for %v\n", t.RegisterTx.Registry.Origin)
+	} else if t.ResultTx != nil {
+		b.Results[t.ResultTx.Result.PollId] = t.ResultTx
+		fmt.Printf("BLOCKCHAIN ADD resultTx for poll %v\n", t.ResultTx.Result.PollId)
 	}
 }
 
@@ -185,6 +195,10 @@ func (b *Blockchain) addTransactions(t Transactions) {
 
 	for _, register := range t.Registers {
 		b.Registry = append(b.Registry, &register)
+	}
+
+	for _, result := range t.Results {
+		b.Results[result.Result.PollId] = &result
 	}
 }
 

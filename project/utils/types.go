@@ -88,6 +88,7 @@ type Transactions struct {
 	Votes     []VoteTx
 	Polls     []PollTx
 	Registers []RegisterTx
+	Results   []ResultTx
 }
 
 // Helper function to convert transactions to string
@@ -190,13 +191,13 @@ type RegisterTx struct {
 
 // Results of the poll
 type ResultTx struct {
-	ID uint32
+	ID     uint32
 	Result *Result
 }
 
 type Result struct {
-	Count int64
-	PollId uint32
+	Count     int64
+	PollId    uint32
 	Timestamp time.Time
 }
 
@@ -216,7 +217,7 @@ type Transaction struct {
 	VoteTx     *VoteTx
 	PollTx     *PollTx
 	RegisterTx *RegisterTx
-	ResultTx *ResultTx
+	ResultTx   *ResultTx
 }
 
 type AddrGossipPacket struct {
