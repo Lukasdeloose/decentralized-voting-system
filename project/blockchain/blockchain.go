@@ -50,6 +50,7 @@ func NewBlockChain() *Blockchain {
 		Registry:                make([]*RegisterTx, 0),
 		Votes:                   make(map[uint32][]*VoteTx),
 		Polls:                   make([]*PollTx, 0),
+		Results:                 make(map[uint32]*ResultTx),
 		unconfirmedTransactions: Transactions{},
 		Blocks:                  Blocks,
 		difficulty:              1,
