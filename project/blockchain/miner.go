@@ -3,6 +3,7 @@ package blockchain
 import (
 	"fmt"
 	"github.com/Roasbeef/go-go-gadget-paillier"
+	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
 	"sync"
 	"time"
 )
@@ -11,9 +12,8 @@ const numTxBeforeMine = 5
 const numTxBeforeGossip = 1
 const secondsPerBlock = 10 * time.Second
 
-
 type Miner struct {
-	blockchain       []Block
+	blockchain       *Blockchain
 	difficulty       int
 	newTransactions  Transactions // unconfirmed transactions
 	transactionsLock sync.RWMutex
@@ -22,9 +22,9 @@ type Miner struct {
 	stopMining       chan int // ID of block where to stop mining for
 }
 
-func NewMiner() Miner {
-	return Miner{
-		blockchain:       make([]Block, 0),
+func NewMiner() *Miner {
+	return &Miner{
+		blockchain:       NewBlockChain(),
 		difficulty:       1,
 		newTransactions:  Transactions{},
 		transactionsLock: sync.RWMutex{},
@@ -62,7 +62,8 @@ func (miner Miner) listenBlocks() {
 	for block := range miner.blocksIn {
 		if miner.nextValidBlock(block) {
 			miner.stopMining <- block.Index
-			miner.blockchain = append(miner.blockchain, block)
+			miner.blockchain.Blocks = append(miner.blockchain.Blocks, block)
+			miner.blockchain.addTransactions(block.Transactions)
 			miner.removeConfirmedTx(block.Transactions)
 		}
 	}
@@ -119,11 +120,11 @@ func (miner Miner) adaptDifficulty() {
 // Take the current unconfirmed transactions and try to mine new block from these
 func (miner Miner) generateBlock() {
 	newBlock := Block{
-		Index:          len(miner.blockchain),
+		Index:          len(miner.blockchain.Blocks),
 		Timestamp:      time.Now(),
 		PaillierPublic: paillier.PublicKey{},
 		Difficulty:     miner.difficulty,
-		PrevHash:       miner.blockchain[len(miner.blockchain)-1].Hash,
+		PrevHash:       miner.blockchain.Blocks[len(miner.blockchain.Blocks)-1].Hash,
 	}
 	miner.checkTransactions(miner.newTransactions)
 
@@ -135,10 +136,41 @@ func (miner Miner) generateBlock() {
 // If all are valid, return same Transactions and True
 // Remove invalid Transactions and return False otherwise
 func (miner Miner) checkTransactions(transactions Transactions) (Transactions, bool) {
-	// TODO: check votes
-	// TODO: check polls
-	// TODO: check registers
-	return transactions, true
+	valid := true
+	i := 0
+	for _, pollTx := range transactions.Polls {
+		if !miner.blockchain.pollValid(pollTx) {
+			valid = false
+		} else {
+			transactions.Polls[i] = pollTx
+			i++
+		}
+	}
+	transactions.Polls = transactions.Polls[:i]
+
+	i = 0
+	for _, voteTx := range transactions.Votes {
+		if !miner.blockchain.voteValid(voteTx) {
+			valid = false
+		} else {
+			transactions.Votes[i] = voteTx
+			i++
+		}
+	}
+	transactions.Votes = transactions.Votes[:i]
+
+	i = 0
+	for _, registerTx := range transactions.Registers {
+		if !miner.blockchain.registerValid(registerTx) {
+			valid = false
+		} else {
+			transactions.Registers[i] = registerTx
+			i++
+		}
+	}
+	transactions.Registers = transactions.Registers[:i]
+
+	return transactions, valid
 }
 
 func (miner Miner) mine(newBlock Block) Block {

@@ -3,10 +3,13 @@ package utils
 import (
 	"bitbucket.org/ustraca/crypto/paillier"
 	"crypto/rsa"
+	"encoding/hex"
 	"fmt"
+	"github.com/lukasdeloose/decentralized-voting-system/project/blockchain"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/constants"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/udp"
 	"math/big"
+	"time"
 )
 
 // Definition of all message types
@@ -18,27 +21,24 @@ type Message struct {
 }
 
 type VotingMessage struct {
-	NewVote *NewVote
-	NewPoll *NewPoll
+	NewVote      *NewVote
+	NewPoll      *NewPoll
 	CountRequest *CountRequest
 }
 
 type NewVote struct {
-	Pollid  uint32
-	Vote    bool
+	Pollid uint32
+	Vote   bool
 }
-
 
 type NewPoll struct {
 	Question string
-	Voters []string
+	Voters   []string
 }
-
 
 type CountRequest struct {
 	Pollid uint32
 }
-
 
 type RumorMessage struct {
 	Origin string
@@ -64,6 +64,39 @@ type StatusPacket struct {
 }
 
 /****************************** Blockchain types ******************************/
+
+type BlockMessage struct {
+	Origin      string
+	ID          uint32
+	Confirmed   int
+	Block       Block
+	VectorClock *StatusPacket
+}
+
+// Transactions that happened since last Block
+type Transactions struct {
+	Votes     []VoteTx
+	Polls     []PollTx
+	Registers []RegisterTx
+}
+
+// Helper function to convert transactions to string
+func (tx Transactions) ToString() string {
+	str := ""
+	for _, vote := range tx.Votes {
+		str += string(vote.ID) + vote.Vote.Origin + string(vote.Vote.PollID) + hex.EncodeToString(vote.Vote.Vote)
+	}
+	for _, poll := range tx.Polls {
+		str += string(poll.ID) + poll.Poll.Origin + poll.Poll.Question
+		for _, voter := range poll.Poll.Voters {
+			str += voter
+		}
+	}
+	// TODO: Registers
+	return str
+}
+
+
 type SerializablePaillierPubKey struct {
 	N []byte
 	G []byte
@@ -71,8 +104,8 @@ type SerializablePaillierPubKey struct {
 
 func (s *SerializablePaillierPubKey) ToPaillier() paillier.PublicKey {
 	return paillier.PublicKey{
-		N:        (&big.Int{}).SetBytes(s.N),
-		G:        (&big.Int{}).SetBytes(s.G),
+		N: (&big.Int{}).SetBytes(s.N),
+		G: (&big.Int{}).SetBytes(s.G),
 	}
 }
 
@@ -88,17 +121,15 @@ func (s *SerializableRSAPubKey) ToRSA() rsa.PublicKey {
 	}
 }
 
-
-
 type Poll struct {
-	Origin   string
-	Question string
-	Voters   []string // Hashes of Sciper numbers of people who are allowed to vote
+	Origin    string
+	Question  string
+	Voters    []string // Hashes of Sciper numbers of people who are allowed to vote
+	Deadline  time.Time
 	PublicKey SerializablePaillierPubKey
 }
 
-
-// TODO seems like a bad idea to identify polls based on questin/origin/voters could use ID?
+// TODO seems like a bad idea to identify polls based on question/origin/voters could use ID?
 func (poll *Poll) IsEqual(poll2 *Poll) bool {
 	if poll.Origin != poll2.Origin {
 		return false
@@ -123,51 +154,50 @@ type EncryptedVote struct {
 	Vote   []byte
 }
 
-
 type Registry struct {
-	Origin string
+	Origin    string
 	PublicKey SerializableRSAPubKey
 }
 
 // New votes cast
 type VoteTx struct {
-	ID   uint32
-	Vote *EncryptedVote
+	ID        uint32
+	Vote      *EncryptedVote
 	Signature []byte
 }
 
 // New poll added, finder of block assigns the unique pollID
 type PollTx struct {
-	Poll *Poll
-	ID   uint32
+	Poll      *Poll
+	ID        uint32
 	Signature []byte
 }
 
 // New users registered
 type RegisterTx struct {
-	ID uint32
+	ID       uint32
 	Registry *Registry
 }
 
+
+
 /******************************************************************************/
 
-
 type GossipPacket struct {
-	Rumor *RumorMessage
-	Status *StatusPacket
-	Private *PrivateMessage
+	Rumor       *RumorMessage
+	Status      *StatusPacket
+	Private     *PrivateMessage
 	Transaction *Transaction
+	Block 		*blockchain.Block
 }
-
 
 type Transaction struct {
-	Origin string
-	ID uint32
-	VoteTx *VoteTx
-	PollTx *PollTx
+	Origin     string
+	ID         uint32
+	VoteTx     *VoteTx
+	PollTx     *PollTx
 	RegisterTx *RegisterTx
 }
-
 
 type AddrGossipPacket struct {
 	Address UDPAddr
@@ -177,7 +207,6 @@ type AddrGossipPacket struct {
 type Messages struct {
 	Msgs []*RumorMessage
 }
-
 
 // Messages that can be directly sent from peer to peer:
 // PrivateMessages
@@ -209,32 +238,29 @@ func (g *GossipPacket) ToP2PMessage() PointToPointMessage {
 // Messages that can be mongered
 type MongerableMessage interface {
 	GetOrigin() string
-	GetID()     uint32
+	GetID() uint32
 	SetID(uint32)
 
 	ToGossip() *GossipPacket
 }
 
-
 // Implement the MongerableMessage interface for RumorMessage
-func (r *RumorMessage) GetOrigin() string { return r.Origin }
-func (r *RumorMessage) GetID() uint32 { return r.ID }
-func (r *RumorMessage) SetID(id uint32) { r.ID = id }
-func (r *RumorMessage) ToGossip() *GossipPacket { return &GossipPacket{ Rumor: r}}
-
+func (r *RumorMessage) GetOrigin() string       { return r.Origin }
+func (r *RumorMessage) GetID() uint32           { return r.ID }
+func (r *RumorMessage) SetID(id uint32)         { r.ID = id }
+func (r *RumorMessage) ToGossip() *GossipPacket { return &GossipPacket{Rumor: r} }
 
 // Implement the MongerableMessage interface for Transaction
-func (t *Transaction) GetOrigin() string { return t.Origin }
-func (t *Transaction) GetID() uint32 { return t.ID }
-func (t *Transaction) SetID(id uint32) { t.ID = id }
-func (t *Transaction) ToGossip() *GossipPacket { return &GossipPacket{ Transaction: t}}
-
+func (t *Transaction) GetOrigin() string       { return t.Origin }
+func (t *Transaction) GetID() uint32           { return t.ID }
+func (t *Transaction) SetID(id uint32)         { t.ID = id }
+func (t *Transaction) ToGossip() *GossipPacket { return &GossipPacket{Transaction: t} }
 
 // Get MongerableMessage from GossipPacket
 func (g *GossipPacket) ToMongerableMessage() MongerableMessage {
 	if g.Rumor != nil {
 		return g.Rumor
-	} else  if g.Transaction != nil{
+	} else if g.Transaction != nil {
 		return g.Transaction
 	} else {
 		return nil

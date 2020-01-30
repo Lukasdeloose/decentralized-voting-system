@@ -3,8 +3,22 @@ package blockchain
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
+	"github.com/roasbeef/go-go-gadget-paillier"
 	"strings"
+	"time"
 )
+
+type Block struct {
+	Index          int
+	Timestamp      time.Time
+	Transactions   Transactions
+	PaillierPublic paillier.PublicKey
+	Difficulty     int
+	Nonce          string
+	PrevHash       string
+	Hash           string
+}
 
 func (block Block) calculateHash() string {
 	record := block.toString()
@@ -29,7 +43,7 @@ func (block Block) isValid() bool {
 // Convert the fields of the block to a string representation, allowing us to hash it
 func (block Block) toString() string {
 	str := ""
-	str += string(block.Index) + block.Timestamp.String() + string(block.Difficulty) + block.Transactions.toString() + block.PaillierPublic.N.String() +
+	str += string(block.Index) + block.Timestamp.String() + string(block.Difficulty) + block.Transactions.ToString() + block.PaillierPublic.N.String() +
 		block.PaillierPublic.G.String() + block.PrevHash + block.Nonce
 	return str
 }

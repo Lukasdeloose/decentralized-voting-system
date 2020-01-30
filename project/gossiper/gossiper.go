@@ -24,6 +24,7 @@ type Gossiper struct {
 
 	name string
 
+	miner *Miner
 
 	N int
 	stubbornTimeout int
@@ -46,8 +47,11 @@ func NewGossiper(name string, peers *Set, uiPort string, gossipAddr string,
 
 	voteRumorer := NewVoteRumorer(name, disp.VoteRumorerUIIn, disp.VoteRumorerIn, disp.RumorerGossipIn, blockchain)  // TODO currently uses dummy blockchain
 
+	miner := NewMiner()
+
 	// Create the webserver for interacting with the rumorer
 	webServer := NewWebServer(rumorer, privateRumorer, voteRumorer, uiPort)
+
 
 	return &Gossiper{
 		Dispatcher:     disp,
@@ -56,6 +60,7 @@ func NewGossiper(name string, peers *Set, uiPort string, gossipAddr string,
 		PrivateRumorer: privateRumorer,
 		VoteRumorer:    voteRumorer,
 		Blockchain:     blockchain,
+		miner: 			miner,
 		name:           name,
 		N:				N,
 		stubbornTimeout: stubbornTimeout,
@@ -68,6 +73,7 @@ func (g *Gossiper) Run() {
 	g.PrivateRumorer.Run()
 	g.VoteRumorer.Run()
 	g.Blockchain.Run()
+	g.miner.Run()
 
 	if g.WebServer != nil {
 		g.WebServer.Run()

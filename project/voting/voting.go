@@ -79,6 +79,7 @@ func (v *VoteRumorer) Polls() []*PollTx {
 
 func (v *VoteRumorer) countVotes(pollid uint32) {
 	v.pollsMutex.Lock()
+	defer v.pollsMutex.Unlock()
 	privKey, exists := v.polls[pollid]
 	if !exists {
 		if constants.Debug {
