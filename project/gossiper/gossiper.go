@@ -50,7 +50,7 @@ func NewGossiper(name string, peers *Set, uiPort string, gossipAddr string,
 	miner := NewMiner(disp.BlockRumorerIn, disp.RumorerGossipIn)
 
 	// Create the webserver for interacting with the rumorer
-	webServer := NewWebServer(rumorer, privateRumorer, voteRumorer, uiPort)
+	webServer := NewWebServer(rumorer, privateRumorer, voteRumorer, blockchain, uiPort)
 
 
 	return &Gossiper{

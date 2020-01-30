@@ -71,3 +71,5 @@ func main() {
 	select {}
 }
 
+// TODO: indicate confirmation of origin in GUI
+

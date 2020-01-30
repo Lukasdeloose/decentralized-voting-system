@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/lukasdeloose/decentralized-voting-system/project/constants"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/udp"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 func (ws *WebServer) handleGetNodeID(w http.ResponseWriter, r *http.Request) {
@@ -138,25 +141,112 @@ func (ws *WebServer) handlePostPrivate(w http.ResponseWriter, r *http.Request) {
 
 func (ws *WebServer) handleGetPolls(w http.ResponseWriter, r *http.Request) {
 	// Get all peers from the rumorer, encode them, and return them to the GUI client
+	type ResultJSON struct {
+		Count int64 `json:"count"`
+		Timestamp time.Time `json:"timestamp"`
+	}
 	type PollJSON struct {
 		Question string `json:"question"`
 		Origin string `json:"origin"`
-		ID uint32`json:"id"`
+		ID uint32 `json:"id"`
+		CanVote bool `json:"canVote"`
+		CanCount bool `json:"canCount"`
+		Result ResultJSON `json:"result"`
 	}
 	type respStruct struct {
 		Polls []PollJSON `json:"polls"`
 	}
-	polls := ws.voteRumorer.Polls()
+	polls := ws.blockchain.GetPolls()
 	resp := respStruct{Polls: make([]PollJSON, len(polls))}
+
 	for i, poll := range polls {
+		res := ws.blockchain.Result(poll.ID)
+		var resJSON ResultJSON
+		if res == nil {
+			resJSON = ResultJSON{
+				Count:     -1,
+				Timestamp: time.Time{},
+			}
+		} else {
+			resJSON = ResultJSON{
+				Count:     res.Count,
+				Timestamp: res.Timestamp,
+			}
+		}
+		canCount := ws.voteRumorer.PrivateKey(poll.Poll.Question, poll.Poll.Voters) != nil && ws.blockchain.Result(poll.ID) == nil
+
 		resp.Polls[i] = PollJSON{
 			Question: poll.Poll.Question,
 			Origin:   poll.Poll.Origin,
 			ID:       poll.ID,
+			CanVote:  ws.voteRumorer.CanVote(poll),
+			CanCount: canCount,
+			Result:   resJSON,
 		}
 	}
+
 	err := json.NewEncoder(w).Encode(resp)
 	if err != nil {
 		fmt.Printf("ERROR: could net encode polls: %v\n", err)
+	}
+}
+
+
+func (ws *WebServer) handlePostVote(w http.ResponseWriter, r *http.Request){
+	// Parse pollid from request
+	vars := mux.Vars(r)
+	pollIdStr := vars["pollId"]
+	pollIdInt, err := strconv.Atoi(pollIdStr)
+	if err != nil {
+		if constants.Debug {
+			fmt.Printf("[DEBUG] Could not convert pollid %v from request\n", pollIdStr)
+		}
+		return
+	}
+	pollId := uint32(pollIdInt)
+
+	// Decode the message and send it to the gossiper over UDP
+	decoder := json.NewDecoder(r.Body)
+	var data struct {
+		Vote string `json:"vote"`
+	}
+	err = decoder.Decode(&data)
+	if err != nil {
+		if constants.Debug {
+			fmt.Printf("[DEBUG] Could not decode json from request\n")
+		}
+		return
+	}
+
+	vote := false
+	if data.Vote == "1" {
+		vote = true
+	}
+
+	ws.voteRumorer.UIIn() <- &VotingMessage{
+		NewVote:      &NewVote{
+			Pollid: pollId,
+			Vote:   vote,
+		},
+	}
+}
+
+func (ws *WebServer) handlePostCount(w http.ResponseWriter, r *http.Request) {
+	// Parse pollid from request
+	vars := mux.Vars(r)
+	pollIdStr := vars["pollId"]
+	pollIdInt, err := strconv.Atoi(pollIdStr)
+	if err != nil {
+		if constants.Debug {
+			fmt.Printf("[DEBUG] Could not convert pollid %v from request\n", pollIdStr)
+		}
+		return
+	}
+	pollId := uint32(pollIdInt)
+
+
+	// Send message to the Gossiper
+	ws.voteRumorer.UIIn() <- &VotingMessage{
+		CountRequest: &CountRequest{Pollid: pollId},
 	}
 }

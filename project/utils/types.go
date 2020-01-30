@@ -188,6 +188,18 @@ type RegisterTx struct {
 	Registry *Registry
 }
 
+// Results of the poll
+type ResultTx struct {
+	ID uint32
+	Result *Result
+}
+
+type Result struct {
+	Count int64
+	PollId uint32
+	Timestamp time.Time
+}
+
 /******************************************************************************/
 
 type GossipPacket struct {
@@ -204,6 +216,7 @@ type Transaction struct {
 	VoteTx     *VoteTx
 	PollTx     *PollTx
 	RegisterTx *RegisterTx
+	ResultTx *ResultTx
 }
 
 type AddrGossipPacket struct {
