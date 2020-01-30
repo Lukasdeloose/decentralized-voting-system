@@ -9,6 +9,7 @@ import (
 
 const numTxBeforeMine = 5
 const numTxBeforeGossip = 1
+const secondsPerBlock = 10 * time.Second
 
 type Miner struct {
 	blockchain       []Block
@@ -109,9 +110,8 @@ func (miner Miner) removeConfirmedTx(tx Transactions) {
 }
 
 // Calculates the difficulty (amount of 0's necessary for the hashing problem) for the PoW algorithm
-func (miner Miner) calculateDifficulty() int {
+func (miner Miner) adaptDifficulty() {
 	// TODO
-	return 2
 }
 
 // Take the current unconfirmed transactions and try to mine new block from these
@@ -120,7 +120,7 @@ func (miner Miner) generateBlock() {
 		Index:          len(miner.blockchain),
 		Timestamp:      time.Now(),
 		PaillierPublic: paillier.PublicKey{},
-		Difficulty:     miner.calculateDifficulty(),
+		Difficulty:     miner.difficulty,
 		PrevHash:       miner.blockchain[len(miner.blockchain)-1].Hash,
 	}
 	miner.checkTransactions(miner.newTransactions)
