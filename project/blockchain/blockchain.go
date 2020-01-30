@@ -70,6 +70,14 @@ func (b *Blockchain) GetPoll(pollId uint32) *PollTx {
 	return nil
 }
 
+func (b *Blockchain) GetVotes(pollId uint32) []*VoteTx {
+	b.mutex.RLock()
+	defer b.mutex.RUnlock()
+
+	return b.Votes[pollId]
+
+}
+
 func (b *Blockchain) GetResult(pollId uint32) *ResultTx {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()

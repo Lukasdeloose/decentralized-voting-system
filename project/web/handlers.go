@@ -160,7 +160,7 @@ func (ws *WebServer) handleGetPolls(w http.ResponseWriter, r *http.Request) {
 	resp := respStruct{Polls: make([]PollJSON, len(polls))}
 
 	for i, poll := range polls {
-		res := ws.blockchain.Result(poll.ID)
+		res := ws.blockchain.GetResult(poll.ID)
 		var resJSON ResultJSON
 		if res == nil {
 			resJSON = ResultJSON{
@@ -169,11 +169,11 @@ func (ws *WebServer) handleGetPolls(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			resJSON = ResultJSON{
-				Count:     res.Count,
-				Timestamp: res.Timestamp,
+				Count:     res.Result.Count,
+				Timestamp: res.Result.Timestamp,
 			}
 		}
-		canCount := ws.voteRumorer.PrivateKey(poll.Poll.Question, poll.Poll.Voters) != nil && ws.blockchain.Result(poll.ID) == nil
+		canCount := ws.voteRumorer.PrivateKey(poll.Poll.Question, poll.Poll.Voters) != nil && ws.blockchain.GetResult(poll.ID) == nil
 
 		resp.Polls[i] = PollJSON{
 			Question: poll.Poll.Question,

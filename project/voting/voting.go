@@ -293,7 +293,7 @@ func (v *VoteRumorer) createPoll(question string, voters []string) *PollTx {
 }
 
 func (v *VoteRumorer) CanVote(poll *PollTx) bool {
-	if v.blockchain.Result(poll.ID) != nil {
+	if v.blockchain.GetResult(poll.ID) != nil {
 		return false
 	}
 	allowedTo := false
@@ -304,7 +304,7 @@ func (v *VoteRumorer) CanVote(poll *PollTx) bool {
 		}
 	}
 	alreadyVoted := false
-	for _, vote := range v.blockchain.GetVotes() {
+	for _, vote := range v.blockchain.GetVotes(poll.ID) {
 		if vote.Vote.Origin == v.name {
 			alreadyVoted = true
 		}
