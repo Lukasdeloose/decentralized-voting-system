@@ -3,6 +3,7 @@ package blockchain
 import (
 	"bitbucket.org/ustraca/crypto/paillier"
 	"fmt"
+	"github.com/lukasdeloose/decentralized-voting-system/project/udp"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
 	"time"
 )
@@ -17,16 +18,18 @@ type Miner struct {
 	difficulty       int
 	transActionsIn   chan Transactions
 	blocksIn         chan *Block
+	blocksOut        chan *AddrGossipPacket
 	stopMining       chan uint32 // ID of block where to stop mining for
 	fork             bool
 }
 
-func NewMiner(blockIn chan *Block) *Miner {
+func NewMiner(blockIn chan *Block, blocksOut chan *AddrGossipPacket) *Miner {
 	return &Miner{
 		blockchain:     NewBlockChain(),
 		difficulty:     1,
 		transActionsIn: make(chan Transactions),
 		blocksIn:       blockIn,
+		blocksOut:      blocksOut,
 		stopMining:     make(chan uint32, 10),
 	}
 }
@@ -135,7 +138,13 @@ func (miner Miner) generateBlock() {
 	miner.checkTransactions(miner.blockchain.unconfirmedTransactions)
 
 	// Start mining until block found, or received from other peer
-	miner.mine(&newBlock)
+	newBlock = miner.mine(&newBlock)
+	miner.blocksOut <- &AddrGossipPacket{
+		Address: udp.UDPAddr{},
+		Gossip: &GossipPacket{
+			Block: &newBlock,
+		},
+	}
 }
 
 // Checks if the transactions are valid.
