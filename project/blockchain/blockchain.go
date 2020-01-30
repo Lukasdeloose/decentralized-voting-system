@@ -60,6 +60,18 @@ func NewBlockChain() *Blockchain {
 	}
 }
 
+func (b *Blockchain) GetPoll(pollId uint32) *PollTx {
+	b.mutex.RLock()
+	defer b.mutex.RUnlock()
+
+	for _, poll := range b.Polls {
+		if poll.ID == pollId {
+			return poll
+		}
+	}
+	return nil
+}
+
 func (b *Blockchain) lastBlock() *Block {
 	return b.Blocks[len(b.Blocks)-1]
 }

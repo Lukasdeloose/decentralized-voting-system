@@ -2,6 +2,7 @@ package web
 
 import (
 	"github.com/gorilla/mux"
+	. "github.com/lukasdeloose/decentralized-voting-system/project/blockchain"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/privateRumorer"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/rumorer"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/voting"
@@ -14,6 +15,7 @@ type WebServer struct {
 	rumorer        *Rumorer
 	privateRumorer *PrivateRumorer
 	voteRumorer *VoteRumorer
+	blockchain *Blockchain
 
 
 	router *mux.Router
@@ -22,12 +24,13 @@ type WebServer struct {
 	uiPort string
 }
 
-func NewWebServer(rumorer *Rumorer, privateRumorer *PrivateRumorer, voteRumorer *VoteRumorer, uiPort string) (ws *WebServer) {
+func NewWebServer(rumorer *Rumorer, privateRumorer *PrivateRumorer, voteRumorer *VoteRumorer, blockchain *Blockchain, uiPort string) (ws *WebServer) {
 	ws = &WebServer{}
 	ws.uiPort = uiPort
 	ws.rumorer = rumorer
 	ws.privateRumorer = privateRumorer
 	ws.voteRumorer = voteRumorer
+	ws.blockchain = blockchain
 	ws.router = mux.NewRouter()
 
 	// Serve api calls
@@ -42,6 +45,8 @@ func NewWebServer(rumorer *Rumorer, privateRumorer *PrivateRumorer, voteRumorer 
 
 	// Voting
 	ws.router.HandleFunc("/voting/polls", ws.handleGetPolls).Methods("GET")
+	ws.router.HandleFunc("/voting/poll/{pollId}/vote", ws.handlePostVote).Methods("POST")
+	ws.router.HandleFunc("/voting/poll/{pollId}/count", ws.handlePostCount).Methods("POST")
 
 	// Serve static files (Note: relative path from Peerster root)
 	ws.router.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("web/assets"))))

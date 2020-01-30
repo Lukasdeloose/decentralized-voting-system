@@ -13,7 +13,9 @@ import (
 	. "github.com/lukasdeloose/decentralized-voting-system/project/udp"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
 	"math/big"
+	"strings"
 	"sync"
+	"time"
 )
 
 type VoteRumorer struct {
@@ -22,7 +24,7 @@ type VoteRumorer struct {
 
 	privateKey *rsa.PrivateKey
 
-	polls map[uint32] *paillier.PrivateKey
+	polls map[string] *paillier.PrivateKey
 	pollsMutex *sync.RWMutex
 
 	uiIn chan *VotingMessage
@@ -36,7 +38,7 @@ func NewVoteRumorer(name string, uiIn chan *VotingMessage, in chan *AddrGossipPa
 	return &VoteRumorer{
 		name: name,
 		nameHash: sha256.Sum256([]byte(name)),
-		polls: make(map[uint32]*paillier.PrivateKey),
+		polls: make(map[string]*paillier.PrivateKey),
 		pollsMutex: &sync.RWMutex{},
 		uiIn: uiIn,
 		in:   in,
@@ -72,15 +74,36 @@ func (v *VoteRumorer) Run() {
 	}()
 }
 
-func (v *VoteRumorer) Polls() []*PollTx {
-	return v.blockchain.GetPolls()
+func (v *VoteRumorer) UIIn() chan *VotingMessage {
+	return v.uiIn
+}
+
+func (v *VoteRumorer) PrivateKey(question string, voters []string) *paillier.PrivateKey {
+	v.pollsMutex.RLock()
+	defer v.pollsMutex.RUnlock()
+
+	privKey, exists := v.polls[question + strings.Join(voters, " ")]
+	if exists {
+		return privKey
+	} else {
+		return nil
+	}
 }
 
 
 func (v *VoteRumorer) countVotes(pollid uint32) {
 	v.pollsMutex.Lock()
 	defer v.pollsMutex.Unlock()
-	privKey, exists := v.polls[pollid]
+
+	poll := v.blockchain.GetPoll(pollid)
+	if poll == nil {
+		if constants.Debug {
+			fmt.Printf("[DEBUG] Could not find poll with pollid %v\n", pollid)
+		}
+		return
+	}
+
+	privKey, exists := v.polls[poll.Poll.Question + strings.Join(poll.Poll.Voters, " ")]
 	if !exists {
 		if constants.Debug {
 			fmt.Printf("[DEBUG] You need the private key to count the votes")
@@ -100,7 +123,7 @@ func (v *VoteRumorer) countVotes(pollid uint32) {
 		voteDecr := privKey.Decrypt(&paillier.Cypher{C: voteBigInt})
 		if !voteDecr.IsInt64() || (voteDecr.Int64() != 0 && voteDecr.Int64() != 1){
 			if constants.Debug {
-				fmt.Printf("[DEBUG] Invalid vote! Will be ignored...\n")
+				fmt.Printf("[DEBUG] Invalid vote %v! Will be ignored...\n", voteDecr.Int64())
 			}
 		} else {
 			count += voteDecr.Int64()
@@ -108,15 +131,21 @@ func (v *VoteRumorer) countVotes(pollid uint32) {
 	}
 
 	fmt.Printf("COUNTED VOTES FOR POLLID %v, COUNT: %v\n", pollid, count)
-
-	// TODO Publish the votes by mongering them (with deadline at which votes were counted)
+	v.publicOut <- &AddrGossipPacket{
+		Address: UDPAddr{},
+		Gossip:  &GossipPacket{Transaction: &Transaction{
+			Origin:     v.name,
+			ID:         0,
+			ResultTx:   &ResultTx{
+				ID:     0,
+				Result: &Result{
+					Count:     count,
+					PollId:    pollid,
+					Timestamp: time.Now(),
+				},
+			},}},
+	}
 }
-
-
-func (v *VoteRumorer) verifyPublishedVotes(pollid uint32) {
-	// TODO
-}
-
 
 func (v *VoteRumorer) registerName() {
 	privKey, _ := rsa.GenerateKey(rand.Reader, 128)
@@ -145,8 +174,6 @@ func (v *VoteRumorer) registerName() {
 	}
 
 	fmt.Println("REGISTERED NAME AND PUBLIC KEY")
-
-	// TODO WAIT FOR CONFIRMATION?
 }
 
 
@@ -179,16 +206,14 @@ func (v *VoteRumorer) handleNewPoll(question string, voters []string) {
 		return
 	}
 
-	tx := &Transaction {
-		ID: 0,
-		Origin: v.name,
-		PollTx: poll,
-	}
-
 	// Let the public rumorer monger the transaction
 	v.publicOut <- &AddrGossipPacket{
 		Address: UDPAddr{},
-		Gossip:  &GossipPacket{Transaction: tx},
+		Gossip:  &GossipPacket{Transaction: &Transaction {
+			ID: 0,
+			Origin: v.name,
+			PollTx: poll,
+		}},
 	}
 	fmt.Printf("POLL: %v\n", question)
 }
@@ -236,6 +261,11 @@ func (v *VoteRumorer) createEncryptedVote(vote bool, pollid uint32) *VoteTx {
 func (v *VoteRumorer) createPoll(question string, voters []string) *PollTx {
 	// Create public private key pair for poll
 	privKey := generateKey(128)
+
+	v.pollsMutex.Lock()
+	v.polls[question + strings.Join(voters, " ")] = privKey // TODO find better way to store key
+	v.pollsMutex.Unlock()
+
 	poll := &Poll {
 		Origin: v.name,
 		Question: question,
@@ -260,6 +290,26 @@ func (v *VoteRumorer) createPoll(question string, voters []string) *PollTx {
 		ID:        0,
 		Signature: signature,
 	}
+}
+
+func (v *VoteRumorer) CanVote(poll *PollTx) bool {
+	if v.blockchain.Result(poll.ID) != nil {
+		return false
+	}
+	allowedTo := false
+	for _, voter := range poll.Poll.Voters {
+		if v.name == voter {
+			allowedTo = true
+			break
+		}
+	}
+	alreadyVoted := false
+	for _, vote := range v.blockchain.GetVotes() {
+		if vote.Vote.Origin == v.name {
+			alreadyVoted = true
+		}
+	}
+	return allowedTo && !alreadyVoted
 }
 
 
