@@ -23,9 +23,9 @@ type Miner struct {
 	fork             bool
 }
 
-func NewMiner(blockIn chan *Block, blocksOut chan *AddrGossipPacket) *Miner {
+func NewMiner(blockchain *Blockchain, blockIn chan *Block, blocksOut chan *AddrGossipPacket) *Miner {
 	return &Miner{
-		blockchain:     NewBlockChain(),
+		blockchain:     blockchain,
 		difficulty:     1,
 		transActionsIn: make(chan Transactions),
 		blocksIn:       blockIn,
