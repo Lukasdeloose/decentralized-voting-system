@@ -130,6 +130,8 @@ func (r *Rumorer) runPeer() {
 					r.printRumor(gossip.Rumor, address)
 				} else if gossip.Transaction != nil {
 					r.printTx(gossip.Transaction)
+				} else if gossip.Block != nil {
+					r.printBlock(gossip.Block)
 				}
 
 				// Handle the message
@@ -386,4 +388,8 @@ func (r *Rumorer) printTx(t *Transaction) {
 	} else if t.RegisterTx != nil {
 		fmt.Printf("REGISTER TRANSACTION ID %v ORIGIN %v\n", t.ID, t.Origin)
 	}
+}
+
+func (r *Rumorer) printBlock(b *Block) {
+	fmt.Printf("NEW BLOCK RECEIVED FROM %v with ID=%v\n", b.Origin, b.ID)
 }

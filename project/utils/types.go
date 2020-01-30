@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"encoding/hex"
 	"fmt"
-	"github.com/lukasdeloose/decentralized-voting-system/project/blockchain"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/constants"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/udp"
 	"math/big"
@@ -64,13 +63,24 @@ type StatusPacket struct {
 }
 
 /****************************** Blockchain types ******************************/
+type Block struct {
+	ID             uint32
+	Timestamp      time.Time
+	Transactions   Transactions
+	PaillierPublic paillier.PublicKey
+	Difficulty     int
+	Origin         string
+	Nonce          string
+	PrevHash       string
+	Hash           string
+}
 
-type BlockMessage struct {
-	Origin      string
-	ID          uint32
-	Confirmed   int
-	Block       Block
-	VectorClock *StatusPacket
+// Convert the fields of the block to a string representation, allowing us to hash it
+func (b Block) ToString() string {
+	str := ""
+	str += string(b.ID) + b.Timestamp.String() + string(b.Difficulty) + b.Transactions.ToString() + b.PaillierPublic.N.String() +
+		b.PaillierPublic.G.String() + b.PrevHash + b.Nonce
+	return str
 }
 
 // Transactions that happened since last Block
@@ -95,7 +105,6 @@ func (tx Transactions) ToString() string {
 	// TODO: Registers
 	return str
 }
-
 
 type SerializablePaillierPubKey struct {
 	N []byte
@@ -179,8 +188,6 @@ type RegisterTx struct {
 	Registry *Registry
 }
 
-
-
 /******************************************************************************/
 
 type GossipPacket struct {
@@ -188,7 +195,7 @@ type GossipPacket struct {
 	Status      *StatusPacket
 	Private     *PrivateMessage
 	Transaction *Transaction
-	Block 		*blockchain.Block
+	Block       *Block
 }
 
 type Transaction struct {
@@ -256,12 +263,20 @@ func (t *Transaction) GetID() uint32           { return t.ID }
 func (t *Transaction) SetID(id uint32)         { t.ID = id }
 func (t *Transaction) ToGossip() *GossipPacket { return &GossipPacket{Transaction: t} }
 
+// Implement the MongerableMessage interface for Block
+func (b *Block) GetOrigin() string       { return b.Origin }
+func (b *Block) GetID() uint32           { return b.ID }
+func (b *Block) SetID(id uint32)         { b.ID = id }
+func (b *Block) ToGossip() *GossipPacket { return &GossipPacket{Block: b} }
+
 // Get MongerableMessage from GossipPacket
 func (g *GossipPacket) ToMongerableMessage() MongerableMessage {
 	if g.Rumor != nil {
 		return g.Rumor
 	} else if g.Transaction != nil {
 		return g.Transaction
+	} else if g.Block != nil {
+		return g.Block
 	} else {
 		return nil
 	}

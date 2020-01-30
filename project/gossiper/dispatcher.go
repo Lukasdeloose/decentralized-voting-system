@@ -35,12 +35,15 @@ type Dispatcher struct {
 	PrivateRumorerLocalOut chan *AddrGossipPacket
 
 	VoteRumorerUIIn chan *VotingMessage
-	VoteRumorerIn chan *AddrGossipPacket
+	VoteRumorerIn   chan *AddrGossipPacket
+
+	BlockRumorerIn  chan *Block
+	BlockRumorerOut chan *Block
 }
 
 func NewDispatcher(name string, uiPort string, gossipAddr string) *Dispatcher {
 	return &Dispatcher{
-		name: name,
+		name:         name,
 		UIServer:     NewServer("127.0.0.1:" + uiPort),
 		GossipServer: NewServer(gossipAddr),
 
@@ -55,7 +58,10 @@ func NewDispatcher(name string, uiPort string, gossipAddr string) *Dispatcher {
 		PrivateRumorerLocalOut:  make(chan *AddrGossipPacket),
 
 		VoteRumorerUIIn: make(chan *VotingMessage),
-		VoteRumorerIn: make(chan *AddrGossipPacket),
+		VoteRumorerIn:   make(chan *AddrGossipPacket),
+
+		BlockRumorerIn: make(chan *Block),
+		BlockRumorerOut: make(chan *Block),
 	}
 }
 
@@ -103,6 +109,8 @@ func (d *Dispatcher) Run() {
 			// Process public messages for different parts of the application
 			if mongerable.ToGossip().Transaction != nil {
 				d.VoteRumorerIn <- &AddrGossipPacket{Gossip: mongerable.ToGossip()}
+			} else if mongerable.ToGossip().Block != nil {
+				d.BlockRumorerIn <- mongerable.ToGossip().Block
 			}
 		}
 	}()
@@ -151,7 +159,7 @@ func (d *Dispatcher) dispatchFromClient(msg *Message) {
 		if msg.Destination == nil {
 			d.RumorerGossipIn <- &AddrGossipPacket{
 				Address: UDPAddr{},
-				Gossip:  &GossipPacket{Rumor: &RumorMessage{
+				Gossip: &GossipPacket{Rumor: &RumorMessage{
 					Origin: d.name,
 					ID:     0,
 					Text:   msg.Text,

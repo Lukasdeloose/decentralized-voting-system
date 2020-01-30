@@ -3,8 +3,11 @@ package blockchain
 import (
 	"bitbucket.org/ustraca/crypto/paillier"
 	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
+	"strings"
 	"sync"
 	"time"
 )
@@ -17,9 +20,11 @@ type id struct {
 }
 
 type Blockchain struct {
-	Transactions chan *Transaction
+	Transactions            chan *Transaction
+	unconfirmedTransactions Transactions
+	TransactionsLock        sync.RWMutex
 
-	Blocks         []Block
+	Blocks         []*Block
 	nextRegisterId uint32
 	nextVoteId     uint32
 	nextPollId     uint32
@@ -29,30 +34,34 @@ type Blockchain struct {
 	Registry []*RegisterTx
 	Votes    map[uint32][]*VoteTx // votes by pollID
 	Polls    []*PollTx
-
-	mutex *sync.RWMutex
+	mutex    *sync.RWMutex
 }
 
 func NewBlockChain() *Blockchain {
-	Blocks := make([]Block, 1)
-	Blocks[0] = Block{
-		Index:        0,
+	Blocks := make([]*Block, 1)
+	Blocks[0] = &Block{
+		ID:           0,
 		Timestamp:    time.Now(),
 		Transactions: Transactions{},
 		Difficulty:   1,
 		Nonce:        "",
 		PrevHash:     "0",
 	} // Genesis block
-	Blocks[0].Hash = Blocks[0].calculateHash()
+	Blocks[0].Hash = calculateHash(Blocks[0])
 	return &Blockchain{
-		Transactions: make(chan *Transaction),
-		Registry:     make([]*RegisterTx, 0),
-		Votes:        make(map[uint32][]*VoteTx),
-		Polls:        make([]*PollTx, 0),
-		Blocks:       Blocks,
-		difficulty:   1,
-		mutex:        &sync.RWMutex{},
+		Transactions:            make(chan *Transaction),
+		Registry:                make([]*RegisterTx, 0),
+		Votes:                   make(map[uint32][]*VoteTx),
+		Polls:                   make([]*PollTx, 0),
+		unconfirmedTransactions: Transactions{},
+		Blocks:                  Blocks,
+		difficulty:              1,
+		mutex:                   &sync.RWMutex{},
 	}
+}
+
+func (b *Blockchain) lastBlock() *Block {
+	return b.Blocks[len(b.Blocks)-1]
 }
 
 func (b *Blockchain) Run() {
@@ -61,6 +70,59 @@ func (b *Blockchain) Run() {
 			b.AddTransaction(t)
 		}
 	}()
+}
+
+func (b *Blockchain) addUnconfirmedTransactions(tx Transactions) {
+	b.TransactionsLock.Lock()
+	defer b.TransactionsLock.Unlock()
+
+	if tx.Polls != nil {
+		b.unconfirmedTransactions.Polls = append(b.unconfirmedTransactions.Polls, tx.Polls...)
+	}
+	if tx.Votes != nil {
+		b.unconfirmedTransactions.Votes = append(b.unconfirmedTransactions.Votes, tx.Votes...)
+	}
+	if tx.Registers != nil {
+		b.unconfirmedTransactions.Registers = append(b.unconfirmedTransactions.Registers, tx.Registers...)
+	}
+}
+
+func (b *Blockchain) removeConfirmedTx(tx Transactions) {
+	b.TransactionsLock.Lock()
+	defer b.TransactionsLock.Unlock()
+
+	// Keep only votes that are not confirmed
+	newVotes := b.unconfirmedTransactions.Votes[:0]
+	for _, unconfirmedVote := range b.unconfirmedTransactions.Votes {
+		found := false
+		for _, confirmedVote := range tx.Votes {
+			if confirmedVote.Vote == unconfirmedVote.Vote {
+				found = true
+			}
+		}
+		if !found {
+			newVotes = append(newVotes, unconfirmedVote)
+		}
+	}
+	b.unconfirmedTransactions.Votes = newVotes
+
+	// Polls
+	// TODO: check based on ID?
+	newPolls := b.unconfirmedTransactions.Polls[:0]
+	for _, unconfirmedPoll := range b.unconfirmedTransactions.Polls {
+		found := false
+		for _, confirmedPoll := range tx.Polls {
+			if confirmedPoll.Poll.IsEqual(unconfirmedPoll.Poll) {
+				found = true
+			}
+		}
+		if !found {
+			newPolls = append(newPolls, unconfirmedPoll)
+		}
+	}
+	b.unconfirmedTransactions.Polls = newPolls
+
+	// TODO: registers
 }
 
 func (b *Blockchain) GetPolls() []*PollTx {
@@ -84,7 +146,6 @@ func (b *Blockchain) AddTransaction(t *Transaction) {
 		b.Polls = append(b.Polls, t.PollTx)
 		fmt.Printf("BLOCKCHAIN ADD polltx %v %v\n", t.PollTx.ID, t.PollTx.Poll.Question)
 	} else if t.VoteTx != nil {
-		// TODO: make slice when poll added
 		b.Votes[t.VoteTx.Vote.PollID] = append(b.Votes[t.VoteTx.Vote.PollID], t.VoteTx)
 		fmt.Printf("BLOCKCHAIN ADD votetx for %v\n", t.VoteTx.Vote.PollID)
 	} else if t.RegisterTx != nil {
@@ -187,4 +248,30 @@ func (b *Blockchain) voteValid(voteTx VoteTx) bool {
 func (b *Blockchain) registerValid(registerTx RegisterTx) bool {
 	// TODO
 	return true
+}
+
+func calculateHash(block *Block) string {
+	record := block.ToString()
+	h := sha256.New()
+	h.Write([]byte(record))
+	hashed := h.Sum(nil)
+	return hex.EncodeToString(hashed)
+}
+
+// When receiving a new block from another peer, this function checks if it is valid:
+// - Hash is correct and starts with necessary amount of zeros
+func hashesValid(block *Block) bool {
+	if !hashValid(block.Hash, block.Difficulty) {
+		return false
+	}
+	if block.Hash != calculateHash(block) {
+		return false
+	}
+	return true
+}
+
+// Hash starts with necessary amount of 0's
+func hashValid(hash string, difficulty int) bool {
+	prefix := strings.Repeat("0", difficulty)
+	return strings.HasPrefix(hash, prefix)
 }

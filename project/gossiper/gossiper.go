@@ -45,9 +45,9 @@ func NewGossiper(name string, peers *Set, uiPort string, gossipAddr string,
 	// Create the blockchain miner
 	blockchain := NewBlockChain()
 
-	voteRumorer := NewVoteRumorer(name, disp.VoteRumorerUIIn, disp.VoteRumorerIn, disp.RumorerGossipIn, blockchain)  // TODO currently uses dummy blockchain
+	voteRumorer := NewVoteRumorer(name, disp.VoteRumorerUIIn, disp.VoteRumorerIn, disp.RumorerGossipIn, blockchain)
 
-	miner := NewMiner()
+	miner := NewMiner(disp.BlockRumorerIn)
 
 	// Create the webserver for interacting with the rumorer
 	webServer := NewWebServer(rumorer, privateRumorer, voteRumorer, uiPort)

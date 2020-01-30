@@ -1,10 +1,9 @@
 package blockchain
 
 import (
+	"bitbucket.org/ustraca/crypto/paillier"
 	"fmt"
-	"github.com/Roasbeef/go-go-gadget-paillier"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
-	"sync"
 	"time"
 )
 
@@ -14,23 +13,21 @@ const secondsPerBlock = 10 * time.Second
 
 type Miner struct {
 	blockchain       *Blockchain
+	forkedBlockchain *Blockchain
 	difficulty       int
-	newTransactions  Transactions // unconfirmed transactions
-	transactionsLock sync.RWMutex
 	transActionsIn   chan Transactions
-	blocksIn         chan Block
-	stopMining       chan int // ID of block where to stop mining for
+	blocksIn         chan *Block
+	stopMining       chan uint32 // ID of block where to stop mining for
+	fork             bool
 }
 
-func NewMiner() *Miner {
+func NewMiner(blockIn chan *Block) *Miner {
 	return &Miner{
-		blockchain:       NewBlockChain(),
-		difficulty:       1,
-		newTransactions:  Transactions{},
-		transactionsLock: sync.RWMutex{},
-		transActionsIn:   make(chan Transactions),
-		blocksIn:         make(chan Block),
-		stopMining:       make(chan int, 10),
+		blockchain:     NewBlockChain(),
+		difficulty:     1,
+		transActionsIn: make(chan Transactions),
+		blocksIn:       blockIn,
+		stopMining:     make(chan uint32, 10),
 	}
 }
 
@@ -41,75 +38,84 @@ func (miner Miner) Run() {
 
 func (miner Miner) listenTransactions() {
 	for tx := range miner.transActionsIn {
-		miner.transactionsLock.Lock()
-		if tx.Polls != nil {
-			miner.newTransactions.Polls = append(miner.newTransactions.Polls, tx.Polls...)
-		}
-		if tx.Votes != nil {
-			miner.newTransactions.Votes = append(miner.newTransactions.Votes, tx.Votes...)
-		}
-		if tx.Registers != nil {
-			miner.newTransactions.Registers = append(miner.newTransactions.Registers, tx.Registers...)
-		}
-		numTrans := len(miner.newTransactions.Polls) + len(miner.newTransactions.Registers) + len(miner.newTransactions.Votes)
+		miner.blockchain.addUnconfirmedTransactions(tx)
+		numTrans := len(miner.blockchain.unconfirmedTransactions.Polls) + len(miner.blockchain.unconfirmedTransactions.Registers) + len(miner.blockchain.unconfirmedTransactions.Votes)
 		if numTrans > numTxBeforeMine {
 			miner.generateBlock()
 		}
 	}
 }
 
-func (miner Miner) listenBlocks() {
-	for block := range miner.blocksIn {
-		if miner.nextValidBlock(block) {
-			miner.stopMining <- block.Index
+func (miner Miner) handleFork(block *Block) {
+	if block.ID == uint32(len(miner.blockchain.Blocks)) {
+		// Next block
+		if block.PrevHash == miner.blockchain.lastBlock().Hash {
+			miner.stopMining <- block.ID
 			miner.blockchain.Blocks = append(miner.blockchain.Blocks, block)
 			miner.blockchain.addTransactions(block.Transactions)
-			miner.removeConfirmedTx(block.Transactions)
+			miner.blockchain.removeConfirmedTx(block.Transactions)
+			return
+		}
+	}
+	if block.ID == uint32(len(miner.forkedBlockchain.Blocks)) {
+		if block.PrevHash == miner.forkedBlockchain.lastBlock().Hash {
+			miner.forkedBlockchain.Blocks = append(miner.forkedBlockchain.Blocks, block)
+			miner.forkedBlockchain.addTransactions(block.Transactions)
+			miner.forkedBlockchain.removeConfirmedTx(block.Transactions)
+			return
+		}
+	}
+	if len(miner.forkedBlockchain.Blocks) > len(miner.blockchain.Blocks) {
+		temp := miner.blockchain
+		miner.blockchain = miner.forkedBlockchain
+		miner.forkedBlockchain = temp
+	}
+	if len(miner.blockchain.Blocks)-len(miner.forkedBlockchain.Blocks) > 4 {
+		miner.forkedBlockchain = nil
+		miner.fork = false
+	}
+}
+
+func (miner Miner) listenBlocks() {
+	for block := range miner.blocksIn {
+		if !miner.validBlock(block) {
+			return
+		}
+		if miner.fork == true {
+			miner.handleFork(block)
+		}
+
+		if block.ID == uint32(len(miner.blockchain.Blocks)) {
+			// Next block
+			if block.PrevHash == miner.blockchain.lastBlock().Hash {
+				miner.stopMining <- block.ID
+				miner.blockchain.Blocks = append(miner.blockchain.Blocks, block)
+				//miner.blockchain.addTransactions(block.Transactions)
+				miner.blockchain.removeConfirmedTx(block.Transactions)
+				return
+			}
+		}
+		if block.ID == uint32(len(miner.blockchain.Blocks))-1 {
+			if block.PrevHash == miner.blockchain.Blocks[len(miner.blockchain.Blocks)-1].Hash {
+				miner.fork = true
+				miner.forkedBlockchain = miner.blockchain
+				miner.forkedBlockchain.Blocks = append(miner.blockchain.Blocks, block)
+				//miner.blockchain.addTransactions(block.Transactions)
+				miner.forkedBlockchain.removeConfirmedTx(block.Transactions)
+				return
+			}
 		}
 	}
 }
 
-func (miner Miner) nextValidBlock(block Block) bool {
-	if !block.isValid() {
+func (miner Miner) validBlock(block *Block) bool {
+	if !hashesValid(block) {
 		return false
 	}
 	if _, ok := miner.checkTransactions(block.Transactions); !ok {
 		return false
 	}
 	return true
-}
-
-func (miner Miner) removeConfirmedTx(tx Transactions) {
-	// Keep only votes that are not confirmed
-	newVotes := miner.newTransactions.Votes[:0]
-	for _, unconfirmedVote := range miner.newTransactions.Votes {
-		found := false
-		for _, confirmedVote := range tx.Votes {
-			if confirmedVote.Vote == unconfirmedVote.Vote {
-				found = true
-			}
-		}
-		if !found {
-			newVotes = append(newVotes, unconfirmedVote)
-		}
-	}
-
-	// Polls
-	// TODO: check based on ID?
-	newPolls := miner.newTransactions.Polls[:0]
-	for _, unconfirmedPoll := range miner.newTransactions.Polls {
-		found := false
-		for _, confirmedPoll := range tx.Polls {
-			if confirmedPoll.Poll.IsEqual(unconfirmedPoll.Poll) {
-				found = true
-			}
-		}
-		if !found {
-			newPolls = append(newPolls, unconfirmedPoll)
-		}
-	}
-
-	// TODO: registers
 }
 
 // Calculates the difficulty (amount of 0's necessary for the hashing problem) for the PoW algorithm
@@ -120,16 +126,16 @@ func (miner Miner) adaptDifficulty() {
 // Take the current unconfirmed transactions and try to mine new block from these
 func (miner Miner) generateBlock() {
 	newBlock := Block{
-		Index:          len(miner.blockchain.Blocks),
+		ID:             uint32(len(miner.blockchain.Blocks)),
 		Timestamp:      time.Now(),
 		PaillierPublic: paillier.PublicKey{},
 		Difficulty:     miner.difficulty,
 		PrevHash:       miner.blockchain.Blocks[len(miner.blockchain.Blocks)-1].Hash,
 	}
-	miner.checkTransactions(miner.newTransactions)
+	miner.checkTransactions(miner.blockchain.unconfirmedTransactions)
 
 	// Start mining until block found, or received from other peer
-	miner.mine(newBlock)
+	miner.mine(&newBlock)
 }
 
 // Checks if the transactions are valid.
@@ -173,24 +179,24 @@ func (miner Miner) checkTransactions(transactions Transactions) (Transactions, b
 	return transactions, valid
 }
 
-func (miner Miner) mine(newBlock Block) Block {
+func (miner Miner) mine(newBlock *Block) Block {
 	for i := 0; ; i++ {
 		for index := range miner.stopMining {
-			if index >= newBlock.Index {
+			if index >= newBlock.ID {
 				break
 			}
 		}
 		hex := fmt.Sprintf("%x", i)
 		newBlock.Nonce = hex
-		if !hashValid(newBlock.calculateHash(), newBlock.Difficulty) {
-			fmt.Println(newBlock.calculateHash(), " do more work!")
+		if !hashValid(calculateHash(newBlock), newBlock.Difficulty) {
+			fmt.Println(calculateHash(newBlock), " do more work!")
 			time.Sleep(time.Second)
 			continue
 		} else {
-			fmt.Println(newBlock.calculateHash(), " work done!")
-			newBlock.Hash = newBlock.calculateHash()
+			fmt.Println(calculateHash(newBlock), " work done!")
+			newBlock.Hash = calculateHash(newBlock)
 			break
 		}
 	}
-	return newBlock
+	return *newBlock
 }
