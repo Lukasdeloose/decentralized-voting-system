@@ -41,9 +41,11 @@ func (miner Miner) Run() {
 
 func (miner Miner) listenTransactions() {
 	for tx := range miner.transActionsIn {
+		fmt.Println("transaction arrived in miner")
 		miner.blockchain.addUnconfirmedTransaction(*tx)
 		numTrans := len(miner.blockchain.unconfirmedTransactions.Polls) + len(miner.blockchain.unconfirmedTransactions.Registers) + len(miner.blockchain.unconfirmedTransactions.Votes)
 		if numTrans > numTxBeforeMine {
+			fmt.Println("Generating block ")
 			miner.generateBlock()
 		}
 	}
@@ -129,7 +131,7 @@ func (miner Miner) adaptDifficulty() {
 
 // Take the current unconfirmed transactions and try to mine new block from these
 func (miner Miner) generateBlock() {
-	newBlock := Block{
+	newBlock := &Block{
 		ID:             uint32(len(miner.blockchain.Blocks)),
 		Timestamp:      time.Now(),
 		PaillierPublic: paillier.PublicKey{},
@@ -139,11 +141,15 @@ func (miner Miner) generateBlock() {
 	miner.checkTransactions(miner.blockchain.unconfirmedTransactions)
 
 	// Start mining until block found, or received from other peer
-	newBlock = miner.mine(&newBlock)
+	newBlock = miner.mine(newBlock)
+	if newBlock == nil {
+		fmt.Println("Stopped mining, other person found block")
+		return
+	}
 	miner.blocksOut <- &AddrGossipPacket{
 		Address: udp.UDPAddr{},
 		Gossip: &GossipPacket{
-			Block: &newBlock,
+			Block: newBlock,
 		},
 	}
 }
@@ -189,11 +195,11 @@ func (miner Miner) checkTransactions(transactions Transactions) (Transactions, b
 	return transactions, valid
 }
 
-func (miner Miner) mine(newBlock *Block) Block {
+func (miner Miner) mine(newBlock *Block) *Block {
 	for i := 0; ; i++ {
-		for index := range miner.stopMining {
-			if index >= newBlock.ID {
-				break
+		for len(miner.stopMining) > 0 {
+			if <-miner.stopMining >= newBlock.ID {
+				return nil
 			}
 		}
 		hex := fmt.Sprintf("%x", i)
@@ -208,5 +214,5 @@ func (miner Miner) mine(newBlock *Block) Block {
 			break
 		}
 	}
-	return *newBlock
+	return newBlock
 }

@@ -114,6 +114,7 @@ func (d *Dispatcher) Run() {
 			if mongerable.ToGossip().Transaction != nil {
 				d.VoteRumorerIn <- &AddrGossipPacket{Gossip: mongerable.ToGossip()}
 				d.TransactionRumorerIn <- mongerable.ToGossip().Transaction
+				fmt.Println("sent to transactionrumorerin")
 			} else if mongerable.ToGossip().Block != nil {
 				d.BlockRumorerIn <- mongerable.ToGossip().Block
 			}
