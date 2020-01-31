@@ -134,6 +134,7 @@ func (b *Blockchain) addUnconfirmedTransaction(tx Transaction) {
 	}
 	if tx.VoteTx != nil {
 		b.unconfirmedTransactions.Votes = append(b.unconfirmedTransactions.Votes, tx.VoteTx)
+		fmt.Println("Adding vote")
 	}
 	if tx.RegisterTx != nil {
 		b.unconfirmedTransactions.Registers = append(b.unconfirmedTransactions.Registers, tx.RegisterTx)
