@@ -1,6 +1,9 @@
 $(document).ready(function(){
     let nodeIdEl = $("#node-id");
     let pollsEl = $("#polls");
+    let questionEl = $("#add-poll-question");
+    let votersEl = $("#add-poll-voters");
+    let addButtonEl = $("#add-poll-button");
 
     $.getJSON("../id", function(data) {
         nodeIdEl.html("<p>" + data.id + "</p>");
@@ -104,6 +107,16 @@ $(document).ready(function(){
             setTimeout(refreshPolls, 100);
         });
     }
+
+    addButtonEl.click(function() {
+        $.ajax({
+            type: 'POST',
+            url: 'polls',
+            data: JSON.stringify({"question": questionEl.val(), "voters": votersEl.val()}),
+            contentType: "application/json",
+            dataType: 'json'
+        });
+    });
 
     refreshPolls();
 });

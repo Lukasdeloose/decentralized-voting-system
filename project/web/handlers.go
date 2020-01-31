@@ -9,6 +9,7 @@ import (
 	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -249,4 +250,26 @@ func (ws *WebServer) handlePostCount(w http.ResponseWriter, r *http.Request) {
 	ws.voteRumorer.UIIn() <- &VotingMessage{
 		CountRequest: &CountRequest{Pollid: pollId},
 	}
+}
+
+func (ws *WebServer) handlePostPolls(w http.ResponseWriter, r *http.Request) {
+	// Decode the message and send it to the gossiper over UDP
+	decoder := json.NewDecoder(r.Body)
+	var data struct {
+		Question string `json:"question"`
+		Voters string `json:"voters"`
+	}
+	err := decoder.Decode(&data)
+	if err != nil {
+		panic(err)
+	}
+
+	votersSlice := strings.Split(data.Voters, "\n")
+	ws.voteRumorer.UIIn() <- &VotingMessage{
+		NewPoll:      &NewPoll{
+			Question: data.Question,
+			Voters:   votersSlice,
+		},
+	}
+
 }

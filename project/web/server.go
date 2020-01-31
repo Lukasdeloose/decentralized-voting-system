@@ -47,6 +47,7 @@ func NewWebServer(rumorer *Rumorer, privateRumorer *PrivateRumorer, voteRumorer 
 	ws.router.HandleFunc("/voting/polls", ws.handleGetPolls).Methods("GET")
 	ws.router.HandleFunc("/voting/poll/{pollId}/vote", ws.handlePostVote).Methods("POST")
 	ws.router.HandleFunc("/voting/poll/{pollId}/count", ws.handlePostCount).Methods("POST")
+	ws.router.HandleFunc("/voting/polls", ws.handlePostPolls).Methods("POST")
 
 	// Serve static files (Note: relative path from Peerster root)
 	ws.router.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("web/assets"))))
