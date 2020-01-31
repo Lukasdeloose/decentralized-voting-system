@@ -21,6 +21,7 @@ type Miner struct {
 	blocksOut        chan *AddrGossipPacket
 	stopMining       chan uint32 // ID of block where to stop mining for
 	fork             bool
+	mining           bool
 }
 
 func NewMiner(blockchain *Blockchain, transActionsIn chan *Transaction, blockIn chan *Block, blocksOut chan *AddrGossipPacket) *Miner {
@@ -31,6 +32,7 @@ func NewMiner(blockchain *Blockchain, transActionsIn chan *Transaction, blockIn 
 		blocksIn:       blockIn,
 		blocksOut:      blocksOut,
 		stopMining:     make(chan uint32, 10),
+		mining:         false,
 	}
 }
 
@@ -44,9 +46,10 @@ func (miner Miner) listenTransactions() {
 		fmt.Println("transaction arrived in miner")
 		miner.blockchain.addUnconfirmedTransaction(*tx)
 		numTrans := len(miner.blockchain.unconfirmedTransactions.Polls) + len(miner.blockchain.unconfirmedTransactions.Registers) + len(miner.blockchain.unconfirmedTransactions.Votes)
-		if numTrans > numTxBeforeMine {
+		if numTrans > numTxBeforeMine && !miner.mining {
+			miner.mining = true
 			fmt.Println("Generating block ")
-			miner.generateBlock()
+			go miner.generateBlock()
 		}
 	}
 }
@@ -125,8 +128,11 @@ func (miner Miner) validBlock(block *Block) bool {
 
 // Calculates the difficulty (amount of 0's necessary for the hashing problem) for the PoW algorithm
 func (miner Miner) adaptDifficulty() {
-	//prevTime := miner.blockchain.Blocks[miner.blockchain.length()-10].Timestamp
-
+	prevTime := miner.blockchain.Blocks[miner.blockchain.length()-10].Timestamp
+	timeDiff := time.Now().Sub(prevTime)
+	if timeDiff/10 < 10*secondsPerBlock {
+		miner.difficulty++
+	}
 }
 
 // Take the current unconfirmed transactions and try to mine new block from these
@@ -209,6 +215,7 @@ func (miner Miner) mine(newBlock *Block) *Block {
 		} else {
 			fmt.Println(calculateHash(newBlock), " work done!")
 			newBlock.Hash = calculateHash(newBlock)
+			miner.mining = false
 			break
 		}
 	}
