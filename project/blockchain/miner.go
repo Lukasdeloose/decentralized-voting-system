@@ -141,7 +141,7 @@ func (miner Miner) generateBlock() {
 		Difficulty:     miner.difficulty,
 		PrevHash:       miner.blockchain.Blocks[len(miner.blockchain.Blocks)-1].Hash,
 	}
-	transactions, valid := miner.checkTransactions(miner.blockchain.unconfirmedTransactions)
+	transactions, valid := miner.checkTransactionsCreate(miner.blockchain.unconfirmedTransactions)
 	fmt.Println("Transactions are valid?", valid)
 	newBlock.Transactions = transactions
 	// Start mining until block found, or received from other peer
@@ -168,11 +168,57 @@ func (miner Miner) generateBlock() {
 func (miner Miner) checkTransactions(transactions Transactions) (Transactions, bool) {
 	valid := true
 	i := 0
+	id := miner.blockchain.nextPollId
 	for _, pollTx := range transactions.Polls {
-		if !miner.blockchain.pollValid(pollTx) {
+		if !miner.blockchain.pollValid(pollTx, id) {
 			valid = false
 			fmt.Println("Poll invalid")
 		} else {
+			id++
+			transactions.Polls[i] = pollTx
+			i++
+		}
+	}
+	transactions.Polls = transactions.Polls[:i]
+
+	i = 0
+	for _, voteTx := range transactions.Votes {
+		if !miner.blockchain.voteValid(voteTx) {
+			fmt.Println("Invalid vote")
+			valid = false
+		} else {
+			transactions.Votes[i] = voteTx
+			i++
+		}
+	}
+	transactions.Votes = transactions.Votes[:i]
+
+	i = 0
+	for _, registerTx := range transactions.Registers {
+		if !miner.blockchain.registerValid(registerTx) {
+			fmt.Println("Invalid register")
+			valid = false
+		} else {
+			transactions.Registers[i] = registerTx
+			i++
+		}
+	}
+	transactions.Registers = transactions.Registers[:i]
+
+	return transactions, valid
+}
+
+func (miner Miner) checkTransactionsCreate(transactions Transactions) (Transactions, bool) {
+	valid := true
+	i := 0
+	nextPollId := miner.blockchain.nextPollId
+	for _, pollTx := range transactions.Polls {
+		if !miner.blockchain.pollValid(pollTx, 0) {
+			valid = false
+			fmt.Println("Poll invalid")
+		} else {
+			pollTx.ID = nextPollId
+			nextPollId++
 			transactions.Polls[i] = pollTx
 			i++
 		}

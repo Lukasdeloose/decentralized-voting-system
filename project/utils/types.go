@@ -87,10 +87,10 @@ func (b Block) ToString() string {
 
 // Transactions that happened since last Block
 type Transactions struct {
-	Votes     []VoteTx
-	Polls     []PollTx
-	Registers []RegisterTx
-	Results   []ResultTx
+	Votes     []*VoteTx
+	Polls     []*PollTx
+	Registers []*RegisterTx
+	Results   []*ResultTx
 }
 
 // Helper function to convert transactions to string

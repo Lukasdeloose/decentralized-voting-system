@@ -57,6 +57,7 @@ $(document).ready(function () {
 
     function refreshPolls() {
         $.getJSON("polls", function (data) {
+            console.log(data)
             updatedPollIds = new Map();
             for (i = 0; i < data.polls.length; i++) {
                 updatedPollIds.set(data.polls[i].id, data.polls[i])

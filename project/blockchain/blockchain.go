@@ -27,12 +27,12 @@ type Blockchain struct {
 
 	difficulty int
 
-	Registry []*RegisterTx
+	Registry   []*RegisterTx
 	PublicKeys map[string]*rsa.PublicKey
-	Votes    map[uint32][]*VoteTx // Votes by pollID
-	Polls    []*PollTx
-	Results  map[uint32]*ResultTx // Results by pollID
-	mutex    *sync.RWMutex
+	Votes      map[uint32][]*VoteTx // Votes by pollID
+	Polls      []*PollTx
+	Results    map[uint32]*ResultTx // Results by pollID
+	mutex      *sync.RWMutex
 }
 
 func NewBlockChain() *Blockchain {
@@ -71,7 +71,6 @@ func (b *Blockchain) GetPoll(pollId uint32) *PollTx {
 	}
 	return nil
 }
-
 
 func (b *Blockchain) GetPublicKey(origin string) *rsa.PublicKey {
 	b.mutex.RLock()
@@ -131,16 +130,16 @@ func (b *Blockchain) addUnconfirmedTransaction(tx Transaction) {
 	defer b.TransactionsLock.Unlock()
 
 	if tx.PollTx != nil {
-		b.unconfirmedTransactions.Polls = append(b.unconfirmedTransactions.Polls, *tx.PollTx)
+		b.unconfirmedTransactions.Polls = append(b.unconfirmedTransactions.Polls, tx.PollTx)
 	}
 	if tx.VoteTx != nil {
-		b.unconfirmedTransactions.Votes = append(b.unconfirmedTransactions.Votes, *tx.VoteTx)
+		b.unconfirmedTransactions.Votes = append(b.unconfirmedTransactions.Votes, tx.VoteTx)
 	}
 	if tx.RegisterTx != nil {
-		b.unconfirmedTransactions.Registers = append(b.unconfirmedTransactions.Registers, *tx.RegisterTx)
+		b.unconfirmedTransactions.Registers = append(b.unconfirmedTransactions.Registers, tx.RegisterTx)
 	}
 	if tx.ResultTx != nil {
-		b.unconfirmedTransactions.Results = append(b.unconfirmedTransactions.Results, *tx.ResultTx)
+		b.unconfirmedTransactions.Results = append(b.unconfirmedTransactions.Results, tx.ResultTx)
 	}
 }
 
@@ -237,20 +236,22 @@ func (b *Blockchain) addTransactions(t Transactions) {
 	defer b.mutex.Unlock()
 
 	for _, vote := range t.Votes {
-		b.Votes[vote.Vote.PollID] = append(b.Votes[vote.Vote.PollID], &vote)
+		b.Votes[vote.Vote.PollID] = append(b.Votes[vote.Vote.PollID], vote)
 	}
 
+	fmt.Println(t.Polls)
 	for _, poll := range t.Polls {
-		b.Polls = append(b.Polls, &poll)
+		b.Polls = append(b.Polls, poll)
+		b.nextPollId++
 		b.Votes[poll.ID] = make([]*VoteTx, 0)
 	}
 
 	for _, register := range t.Registers {
-		b.Registry = append(b.Registry, &register)
+		b.Registry = append(b.Registry, register)
 	}
 
 	for _, result := range t.Results {
-		b.Results[result.Result.PollId] = &result
+		b.Results[result.Result.PollId] = result
 	}
 }
 
@@ -292,16 +293,14 @@ func (b *Blockchain) RetrieveVotes(pollid uint32) []*EncryptedVote {
 	return votes
 }
 
-func (b *Blockchain) pollValid(pollTx PollTx) bool {
+func (b *Blockchain) pollValid(pollTx *PollTx, id uint32) bool {
 	// TODO: check signature
 	// Check if ID is unique, in known polls and this transaction
-	nextPollId := b.nextPollId
-	if pollTx.ID != nextPollId {
+	if pollTx.ID != id {
 		fmt.Println("ID is wrong")
-		fmt.Println(pollTx.ID, nextPollId)
+		fmt.Println(pollTx.ID, id)
 		return false
 	}
-	nextPollId++
 
 	if pollTx.Poll.Question == "" {
 		return false
@@ -309,7 +308,7 @@ func (b *Blockchain) pollValid(pollTx PollTx) bool {
 	return true
 }
 
-func (b *Blockchain) voteValid(voteTx VoteTx) bool {
+func (b *Blockchain) voteValid(voteTx *VoteTx) bool {
 	// TODO: check signature
 	// Check if ID is unique, in known polls and this transaction
 	nextVoteId := b.nextVoteId
@@ -322,10 +321,11 @@ func (b *Blockchain) voteValid(voteTx VoteTx) bool {
 	if voteTx.Vote.PollID >= b.nextPollId {
 		return false
 	}
+
 	return true
 }
 
-func (b *Blockchain) registerValid(registerTx RegisterTx) bool {
+func (b *Blockchain) registerValid(registerTx *RegisterTx) bool {
 	// TODO
 	return true
 }
