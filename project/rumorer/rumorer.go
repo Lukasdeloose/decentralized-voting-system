@@ -23,18 +23,18 @@ type Rumorer struct {
 	name  string
 	peers *Set
 
-	mongeringWith map[UDPAddr] MongerableMessage
+	mongeringWith      map[UDPAddr]MongerableMessage
 	mongeringWithMutex *sync.RWMutex
 
 	// ID the next message created by this peer will get
-	id uint32
+	id      uint32
 	idMutex *sync.RWMutex
 
 	// The rumorer communicates through these channels
-	in   chan *AddrGossipPacket
-	out  chan *AddrGossipPacket
+	in       chan *AddrGossipPacket
+	out      chan *AddrGossipPacket
 	localOut chan MongerableMessage
-	uiIn chan *Message
+	uiIn     chan *Message
 
 	// State of this peer, this contains the vector clock and messages
 	state *State
@@ -54,21 +54,21 @@ func NewRumorer(name string, peers *Set,
 	in chan *AddrGossipPacket, out chan *AddrGossipPacket, localOut chan MongerableMessage, uiIn chan *Message, antiEntropy int) *Rumorer {
 
 	return &Rumorer{
-		name:              name,
-		peers:             peers,
-		mongeringWith:     make(map[UDPAddr] MongerableMessage),
+		name:               name,
+		peers:              peers,
+		mongeringWith:      make(map[UDPAddr]MongerableMessage),
 		mongeringWithMutex: &sync.RWMutex{},
-		id:                1,
-		idMutex:           &sync.RWMutex{},
-		in:                in,
-		out:               out,
-		localOut:          localOut,
-		uiIn:              uiIn,
-		state:             NewState(out),
-		ackChans:          make(map[UDPAddr]map[msgID]chan bool),
-		ackChansMutex:     &sync.RWMutex{},
-		timeout:           time.Second * ACKTIMEOUT,
-		antiEntropyTimout: time.Second * time.Duration(antiEntropy),
+		id:                 1,
+		idMutex:            &sync.RWMutex{},
+		in:                 in,
+		out:                out,
+		localOut:           localOut,
+		uiIn:               uiIn,
+		state:              NewState(out),
+		ackChans:           make(map[UDPAddr]map[msgID]chan bool),
+		ackChansMutex:      &sync.RWMutex{},
+		timeout:            time.Second * ACKTIMEOUT,
+		antiEntropyTimout:  time.Second * time.Duration(antiEntropy),
 	}
 }
 
@@ -87,7 +87,6 @@ func (r *Rumorer) Peers() []UDPAddr {
 func (r *Rumorer) AddPeer(peer UDPAddr) {
 	r.peers.Add(peer)
 }
-
 
 func (r *Rumorer) UIIn() chan *Message {
 	return r.uiIn
@@ -130,8 +129,8 @@ func (r *Rumorer) runPeer() {
 					r.printRumor(gossip.Rumor, address)
 				} else if gossip.Transaction != nil {
 					r.printTx(gossip.Transaction)
-				} else if gossip.Block != nil {
-					r.printBlock(gossip.Block)
+				} else if gossip.MongerableBlock != nil {
+					r.printBlock(gossip.MongerableBlock)
 				}
 
 				// Handle the message
@@ -216,7 +215,6 @@ func (r *Rumorer) startMongering(msg MongerableMessage, except UDPAddr, coinFlip
 	}
 }
 
-
 func (r *Rumorer) handleRumor(msg MongerableMessage, sender UDPAddr, forceResend bool) {
 	// Update peer state, and check if the message was a message we were looking for
 	newMsgs := r.state.Update(msg)
@@ -264,7 +262,6 @@ func (r *Rumorer) handleStatus(msg *StatusPacket, sender UDPAddr) {
 	}
 	r.ackChansMutex.RUnlock()
 
-
 	// Compare the received state to our state
 	iHave, youHave := r.state.Compare(msg)
 
@@ -276,7 +273,7 @@ func (r *Rumorer) handleStatus(msg *StatusPacket, sender UDPAddr) {
 			fmt.Printf("MONGERING with %v\n", sender)
 		}
 		if toSend == nil {
-			log.Fatalf("TOSEND IS NIL for ID %v ORIGIN %v MYORIGIN %v\n" +
+			log.Fatalf("TOSEND IS NIL for ID %v ORIGIN %v MYORIGIN %v\n"+
 				"NEXTID: %v, MSGS: %v\n", iHave.NextID, iHave.Identifier, r.name, r.state.state[iHave.Identifier], r.state.messages[iHave.Identifier])
 		}
 		r.send(toSend.ToGossip(), sender)
@@ -350,7 +347,6 @@ func (r *Rumorer) send(packet *GossipPacket, addr UDPAddr) {
 	r.out <- &AddrGossipPacket{addr, packet}
 }
 
-
 func (r *Rumorer) printStatus(msg *StatusPacket, address UDPAddr) {
 	if HW1 {
 		toPrint := ""
@@ -364,7 +360,6 @@ func (r *Rumorer) printStatus(msg *StatusPacket, address UDPAddr) {
 	}
 }
 
-
 func (r *Rumorer) printRumor(msg *RumorMessage, address UDPAddr) {
 	if address.String() == "" {
 		fmt.Printf("CLIENT MESSAGE %v\n", msg.Text)
@@ -375,7 +370,7 @@ func (r *Rumorer) printRumor(msg *RumorMessage, address UDPAddr) {
 		}
 	}
 
-	if msg.Text != "" && HW1{
+	if msg.Text != "" && HW1 {
 		fmt.Printf("PEERS %v\n", r.peers)
 	}
 }
@@ -390,6 +385,6 @@ func (r *Rumorer) printTx(t *Transaction) {
 	}
 }
 
-func (r *Rumorer) printBlock(b *Block) {
-	fmt.Printf("NEW BLOCK RECEIVED FROM %v with ID=%v\n", b.Origin, b.ID)
+func (r *Rumorer) printBlock(b *MongerableBlock) {
+	fmt.Printf("NEW BLOCK RECEIVED FROM %v with ID=%v\n", b.Origin, b.Block.ID)
 }

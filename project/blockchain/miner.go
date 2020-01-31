@@ -161,7 +161,11 @@ func (miner Miner) generateBlock() {
 	miner.blocksOut <- &AddrGossipPacket{
 		Address: udp.UDPAddr{},
 		Gossip: &GossipPacket{
-			Block: newBlock,
+			MongerableBlock: &MongerableBlock{
+				Origin: miner.name,
+				ID:     0,
+				Block:  newBlock,
+			},
 		},
 	}
 }

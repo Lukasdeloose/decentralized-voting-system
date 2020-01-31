@@ -114,8 +114,8 @@ func (d *Dispatcher) Run() {
 			if mongerable.ToGossip().Transaction != nil {
 				d.TransactionRumorerIn <- mongerable.ToGossip().Transaction
 				fmt.Println("sent to transactionrumorerin")
-			} else if mongerable.ToGossip().Block != nil {
-				d.BlockRumorerIn <- mongerable.ToGossip().Block
+			} else if mongerable.ToGossip().MongerableBlock != nil {
+				d.BlockRumorerIn <- mongerable.ToGossip().MongerableBlock.Block
 			}
 		}
 	}()

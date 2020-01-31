@@ -204,11 +204,11 @@ type Result struct {
 /******************************************************************************/
 
 type GossipPacket struct {
-	Rumor       *RumorMessage
-	Status      *StatusPacket
-	Private     *PrivateMessage
-	Transaction *Transaction
-	Block       *Block
+	Rumor           *RumorMessage
+	Status          *StatusPacket
+	Private         *PrivateMessage
+	Transaction     *Transaction
+	MongerableBlock *MongerableBlock
 }
 
 type Transaction struct {
@@ -218,6 +218,12 @@ type Transaction struct {
 	PollTx     *PollTx
 	RegisterTx *RegisterTx
 	ResultTx   *ResultTx
+}
+
+type MongerableBlock struct {
+	Origin string
+	ID     uint32
+	Block  *Block
 }
 
 type AddrGossipPacket struct {
@@ -278,10 +284,10 @@ func (t *Transaction) SetID(id uint32)         { t.ID = id }
 func (t *Transaction) ToGossip() *GossipPacket { return &GossipPacket{Transaction: t} }
 
 // Implement the MongerableMessage interface for Block
-func (b *Block) GetOrigin() string       { return b.Origin }
-func (b *Block) GetID() uint32           { return b.ID }
-func (b *Block) SetID(id uint32)         { b.ID = id }
-func (b *Block) ToGossip() *GossipPacket { return &GossipPacket{Block: b} }
+func (b *MongerableBlock) GetOrigin() string       { return b.Origin }
+func (b *MongerableBlock) GetID() uint32           { return b.ID }
+func (b *MongerableBlock) SetID(id uint32)         { b.ID = id }
+func (b *MongerableBlock) ToGossip() *GossipPacket { return &GossipPacket{MongerableBlock: b} }
 
 // Get MongerableMessage from GossipPacket
 func (g *GossipPacket) ToMongerableMessage() MongerableMessage {
@@ -289,8 +295,8 @@ func (g *GossipPacket) ToMongerableMessage() MongerableMessage {
 		return g.Rumor
 	} else if g.Transaction != nil {
 		return g.Transaction
-	} else if g.Block != nil {
-		return g.Block
+	} else if g.MongerableBlock != nil {
+		return g.MongerableBlock
 	} else {
 		return nil
 	}
