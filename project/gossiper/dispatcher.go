@@ -112,11 +112,11 @@ func (d *Dispatcher) Run() {
 		for mongerable := range d.RumorerLocalOut {
 			// Process public messages for different parts of the application
 			if mongerable.ToGossip().Transaction != nil {
-				d.VoteRumorerIn <- &AddrGossipPacket{Gossip: mongerable.ToGossip()}
+				fmt.Println("Transaction arrived in dispatcher")
 				d.TransactionRumorerIn <- mongerable.ToGossip().Transaction
 				fmt.Println("sent to transactionrumorerin")
-			} else if mongerable.ToGossip().Block != nil {
-				d.BlockRumorerIn <- mongerable.ToGossip().Block
+			} else if mongerable.ToGossip().MongerableBlock != nil {
+				d.BlockRumorerIn <- mongerable.ToGossip().MongerableBlock.Block
 			}
 		}
 	}()

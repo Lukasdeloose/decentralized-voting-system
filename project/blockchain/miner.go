@@ -22,9 +22,10 @@ type Miner struct {
 	stopMining       chan uint32 // ID of block where to stop mining for
 	fork             bool
 	mining           bool
+	name             string
 }
 
-func NewMiner(blockchain *Blockchain, transActionsIn chan *Transaction, blockIn chan *Block, blocksOut chan *AddrGossipPacket) *Miner {
+func NewMiner(name string, blockchain *Blockchain, transActionsIn chan *Transaction, blockIn chan *Block, blocksOut chan *AddrGossipPacket) *Miner {
 	return &Miner{
 		blockchain:     blockchain,
 		difficulty:     1,
@@ -33,6 +34,7 @@ func NewMiner(blockchain *Blockchain, transActionsIn chan *Transaction, blockIn 
 		blocksOut:      blocksOut,
 		stopMining:     make(chan uint32, 10),
 		mining:         false,
+		name:           name,
 	}
 }
 
@@ -155,7 +157,11 @@ func (miner Miner) generateBlock() {
 	miner.blocksOut <- &AddrGossipPacket{
 		Address: udp.UDPAddr{},
 		Gossip: &GossipPacket{
-			Block: newBlock,
+			MongerableBlock: &MongerableBlock{
+				Origin: miner.name,
+				ID:     0,
+				Block:  newBlock,
+			},
 		},
 	}
 }
