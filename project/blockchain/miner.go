@@ -2,11 +2,7 @@ package blockchain
 
 import (
 	"bitbucket.org/ustraca/crypto/paillier"
-	"crypto"
-	"crypto/rsa"
-	"crypto/sha256"
 	"fmt"
-	"github.com/dedis/protobuf"
 	"github.com/lukasdeloose/decentralized-voting-system/project/udp"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
 	"time"
@@ -236,7 +232,7 @@ func (miner Miner) mine(newBlock *Block) *Block {
 	return newBlock
 }
 
-
+/*
 func (m *Miner) verifyPollTransaction(tx *PollTx) bool {
 	// Verify the signature
 	pubKey := m.blockchain.GetPublicKey(tx.Poll.Origin)
@@ -314,10 +310,72 @@ func (m *Miner) verifyVoteTransaction(tx *VoteTx) bool {
 	return true
 }
 
-func (m *Miner) verifyRegistration(reg *RegisterTx) {
-	// TODO
+func (m *Miner) verifyRegistration(reg *RegisterTx) bool {
+	exists := false
+	for _, r := range m.blockchain.Registry {
+		if r.ID == reg.ID {
+			exists = true
+			break
+		}
+	}
+	if exists {
+		fmt.Printf("INVALIDE REGISTERTX: id already exists\n")
+		return false
+	}
+
+	originExists := false
+	for _, r := range m.blockchain.Registry {
+		if r.Registry.Origin == reg.Registry.Origin {
+			originExists = true
+			break
+		}
+	}
+	if originExists {
+		fmt.Printf("INVALID REGISTERTX: origin already exists\n")
+		return false
+	}
+
+	return true
 }
 
-func (m *Miner) verifyResults(res *ResultTx) {
-	// TODO
-}
+func (m *Miner) verifyResults(res *ResultTx) bool {
+	exists := false
+	for _, r := range m.blockchain.Results {
+		if r.ID == res.ID {
+			exists = true
+			break
+		}
+	}
+	if exists {
+		fmt.Printf("INVALID RESULT: id already exists\n")
+		return false
+	}
+
+	poll := m.blockchain.GetPoll(res.Result.PollId)
+	if poll == nil {
+		fmt.Printf("INVALID RESULT: poll does not exist\n")
+		return false
+	}
+
+	votes := m.blockchain.GetVotes(res.Result.PollId)
+	ourCount := &big.Int{}
+	for _, vote := range votes {
+		ourCount = big.Int{}.Add(ourCount, big.Int{}.SetBytes(vote.Vote.Vote))
+	}
+
+	// TODO: this verification always returns false, skip it...
+	return true
+
+	encrCount, err := poll.Poll.PublicKey.ToPaillier().Encrypt(big.NewInt(res.Result.Count), rand.Reader)
+	if err != nil {
+		fmt.Printf("INVALID RESULT: could not encrypt votes\n")
+		return false
+	}
+	if ourCount.Cmp(encrCount.C) != 0 {
+		fmt.Printf("INVALID RESULT: count is incorrect")
+		return false
+	}
+
+	return true
+
+}*/

@@ -139,7 +139,7 @@ func (v *VoteRumorer) countVotes(pollid uint32) {
 
 func (v *VoteRumorer) registerName() {
 	privKey, _ := rsa.GenerateKey(rand.Reader, 128)
-
+	v.privateKey = privKey
 	registry := &Registry{
 		Origin: v.name,
 		PublicKey: SerializableRSAPubKey{
@@ -265,14 +265,16 @@ func (v *VoteRumorer) createPoll(question string, voters []string) *PollTx {
 	v.pollId++
 	pollBytes, _ := protobuf.Encode(poll)
 
-	if v.privateKey != nil {
+	if v.privateKey == nil {
 		if constants.Debug {
 			fmt.Printf("[DEBUG] First register your name and get a private key\n")
 		}
 		return nil
 	}
 	hash := sha256.Sum256(pollBytes)
-	signature, _ := rsa.SignPSS(rand.Reader, v.privateKey, crypto.SHA256, hash[:], nil)
+	signature, _ := rsa.SignPSS(rand.Reader, v.privateKey, crypto.SHA256, hash[:], &rsa.PSSOptions{
+		SaltLength: rsa.PSSSaltLengthEqualsHash,
+	})
 
 	return &PollTx{
 		Poll:      poll,
