@@ -19,16 +19,17 @@ import (
 )
 
 type VoteRumorer struct {
-	name string
+	name     string
 	nameHash [32]byte
 
 	privateKey *rsa.PrivateKey
 
-	polls map[string] *paillier.PrivateKey
+	polls      map[string]*paillier.PrivateKey
 	pollsMutex *sync.RWMutex
+	pollId     uint32
 
-	uiIn chan *VotingMessage
-	in chan *AddrGossipPacket
+	uiIn      chan *VotingMessage
+	in        chan *AddrGossipPacket
 	publicOut chan *AddrGossipPacket
 
 	blockchain *Blockchain
@@ -36,12 +37,13 @@ type VoteRumorer struct {
 
 func NewVoteRumorer(name string, uiIn chan *VotingMessage, in chan *AddrGossipPacket, publicOut chan *AddrGossipPacket, blockchain *Blockchain) *VoteRumorer {
 	return &VoteRumorer{
-		name: name,
-		nameHash: sha256.Sum256([]byte(name)),
-		polls: make(map[string]*paillier.PrivateKey),
+		name:       name,
+		nameHash:   sha256.Sum256([]byte(name)),
+		polls:      make(map[string]*paillier.PrivateKey),
 		pollsMutex: &sync.RWMutex{},
-		uiIn: uiIn,
-		in:   in,
+		uiIn:       uiIn,
+		in:         in,
+		pollId:     0,
 		publicOut:  publicOut,
 		blockchain: blockchain,
 	}
@@ -50,7 +52,7 @@ func NewVoteRumorer(name string, uiIn chan *VotingMessage, in chan *AddrGossipPa
 func (v *VoteRumorer) Run() {
 	v.registerName()
 
-	go func(){
+	go func() {
 		for msg := range v.uiIn {
 			if msg.NewVote != nil {
 				go v.handleNewVote(msg.NewVote.Vote, msg.NewVote.Pollid)
@@ -82,14 +84,13 @@ func (v *VoteRumorer) PrivateKey(question string, voters []string) *paillier.Pri
 	v.pollsMutex.RLock()
 	defer v.pollsMutex.RUnlock()
 
-	privKey, exists := v.polls[question + strings.Join(voters, " ")]
+	privKey, exists := v.polls[question+strings.Join(voters, " ")]
 	if exists {
 		return privKey
 	} else {
 		return nil
 	}
 }
-
 
 func (v *VoteRumorer) countVotes(pollid uint32) {
 	v.pollsMutex.Lock()
@@ -103,7 +104,7 @@ func (v *VoteRumorer) countVotes(pollid uint32) {
 		return
 	}
 
-	privKey, exists := v.polls[poll.Poll.Question + strings.Join(poll.Poll.Voters, " ")]
+	privKey, exists := v.polls[poll.Poll.Question+strings.Join(poll.Poll.Voters, " ")]
 	if !exists {
 		if constants.Debug {
 			fmt.Printf("[DEBUG] You need the private key to count the votes")
@@ -121,7 +122,7 @@ func (v *VoteRumorer) countVotes(pollid uint32) {
 		// decrypt the vote with our private key
 		voteBigInt := (&big.Int{}).SetBytes(vote.Vote)
 		voteDecr := privKey.Decrypt(&paillier.Cypher{C: voteBigInt})
-		if !voteDecr.IsInt64() || (voteDecr.Int64() != 0 && voteDecr.Int64() != 1){
+		if !voteDecr.IsInt64() || (voteDecr.Int64() != 0 && voteDecr.Int64() != 1) {
 			if constants.Debug {
 				fmt.Printf("[DEBUG] Invalid vote %v! Will be ignored...\n", voteDecr.Int64())
 			}
@@ -133,11 +134,11 @@ func (v *VoteRumorer) countVotes(pollid uint32) {
 	fmt.Printf("COUNTED VOTES FOR POLLID %v, COUNT: %v\n", pollid, count)
 	v.publicOut <- &AddrGossipPacket{
 		Address: UDPAddr{},
-		Gossip:  &GossipPacket{Transaction: &Transaction{
-			Origin:     v.name,
-			ID:         0,
-			ResultTx:   &ResultTx{
-				ID:     0,
+		Gossip: &GossipPacket{Transaction: &Transaction{
+			Origin: v.name,
+			ID:     0,
+			ResultTx: &ResultTx{
+				ID: 0,
 				Result: &Result{
 					Count:     count,
 					PollId:    pollid,
@@ -159,8 +160,8 @@ func (v *VoteRumorer) registerName() {
 	}
 
 	tx := &Transaction{
-		Origin:   v.name,
-		ID:       0,
+		Origin: v.name,
+		ID:     0,
 		RegisterTx: &RegisterTx{
 			ID:       0,
 			Registry: registry,
@@ -176,16 +177,15 @@ func (v *VoteRumorer) registerName() {
 	fmt.Println("REGISTERED NAME AND PUBLIC KEY")
 }
 
-
 func (v *VoteRumorer) handleNewVote(vote bool, pollid uint32) {
 	// Create a new transaction, this is mongerable
 	votetx := v.createEncryptedVote(vote, pollid)
-	if votetx== nil {
+	if votetx == nil {
 		return
 	}
 
-	tx := &Transaction {
-		ID:   0,
+	tx := &Transaction{
+		ID:     0,
 		Origin: v.name,
 		VoteTx: votetx,
 	}
@@ -199,25 +199,22 @@ func (v *VoteRumorer) handleNewVote(vote bool, pollid uint32) {
 	fmt.Printf("VOTE %v FOR %v\n", vote, pollid)
 }
 
-
 func (v *VoteRumorer) handleNewPoll(question string, voters []string) {
 	poll := v.createPoll(question, voters)
 	if poll == nil {
 		return
 	}
-
 	// Let the public rumorer monger the transaction
 	v.publicOut <- &AddrGossipPacket{
 		Address: UDPAddr{},
-		Gossip:  &GossipPacket{Transaction: &Transaction {
-			ID: 0,
+		Gossip: &GossipPacket{Transaction: &Transaction{
+			ID:     0,
 			Origin: v.name,
 			PollTx: poll,
 		}},
 	}
 	fmt.Printf("POLL: %v\n", question)
 }
-
 
 func (v *VoteRumorer) createEncryptedVote(vote bool, pollid uint32) *VoteTx {
 	publicKey, exists := v.blockchain.PollKey(pollid)
@@ -229,16 +226,16 @@ func (v *VoteRumorer) createEncryptedVote(vote bool, pollid uint32) *VoteTx {
 	}
 
 	voteInt := big.NewInt(0)
-	if vote{
+	if vote {
 		voteInt = big.NewInt(1)
 	}
 
 	voteCypher, _ := publicKey.Encrypt(voteInt, rand.Reader)
 
 	encrVote := &EncryptedVote{
-			Origin: v.name,
-			PollID: 0,
-			Vote:  voteCypher.C.Bytes(),
+		Origin: v.name,
+		PollID: 0,
+		Vote:   voteCypher.C.Bytes(),
 	}
 	voteBytes, _ := protobuf.Encode(encrVote)
 
@@ -257,24 +254,25 @@ func (v *VoteRumorer) createEncryptedVote(vote bool, pollid uint32) *VoteTx {
 	}
 }
 
-
 func (v *VoteRumorer) createPoll(question string, voters []string) *PollTx {
 	// Create public private key pair for poll
 	privKey := generateKey(128)
 
 	v.pollsMutex.Lock()
-	v.polls[question + strings.Join(voters, " ")] = privKey // TODO find better way to store key
+	v.polls[question+strings.Join(voters, " ")] = privKey // TODO find better way to store key
 	v.pollsMutex.Unlock()
 
-	poll := &Poll {
-		Origin: v.name,
+	poll := &Poll{
+		Origin:   v.name,
 		Question: question,
 		Voters:   voters,
-		PublicKey:  SerializablePaillierPubKey{
+		Id:       v.pollId,
+		PublicKey: SerializablePaillierPubKey{
 			N: privKey.PublicKey.N.Bytes(),
 			G: privKey.PublicKey.G.Bytes(),
 		},
 	}
+	v.pollId++
 	pollBytes, _ := protobuf.Encode(poll)
 
 	if v.privateKey != nil {
@@ -311,7 +309,6 @@ func (v *VoteRumorer) CanVote(poll *PollTx) bool {
 	}
 	return allowedTo && !alreadyVoted
 }
-
 
 func generateKey(bits int) *paillier.PrivateKey {
 	var p, q *big.Int

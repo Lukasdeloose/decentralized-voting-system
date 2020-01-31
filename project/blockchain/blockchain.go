@@ -149,12 +149,12 @@ func (b *Blockchain) removeConfirmedTx(tx Transactions) {
 	b.unconfirmedTransactions.Votes = newVotes
 
 	// Polls
-	// TODO: check based on ID?
 	newPolls := b.unconfirmedTransactions.Polls[:0]
 	for _, unconfirmedPoll := range b.unconfirmedTransactions.Polls {
 		found := false
 		for _, confirmedPoll := range tx.Polls {
 			if confirmedPoll.Poll.IsEqual(unconfirmedPoll.Poll) {
+				fmt.Println("transaction was confirmed", unconfirmedPoll.Poll.Origin, unconfirmedPoll.Poll.Id)
 				found = true
 			}
 		}
@@ -164,7 +164,23 @@ func (b *Blockchain) removeConfirmedTx(tx Transactions) {
 	}
 	b.unconfirmedTransactions.Polls = newPolls
 
-	// TODO: registers and results
+	// Polls
+	newRegisters := b.unconfirmedTransactions.Registers[:0]
+	for _, unconfirmedRegister := range b.unconfirmedTransactions.Registers {
+		found := false
+		for _, confirmedRegister := range tx.Registers {
+			if confirmedRegister.Registry.Origin == unconfirmedRegister.Registry.Origin {
+				fmt.Println("register was confirmed", confirmedRegister.Registry.Origin)
+				found = true
+			}
+		}
+		if !found {
+			newRegisters = append(newRegisters, unconfirmedRegister)
+		}
+	}
+	b.unconfirmedTransactions.Registers = newRegisters
+
+	// TODO:  results
 }
 
 func (b *Blockchain) GetPolls() []*PollTx {
@@ -264,15 +280,13 @@ func (b *Blockchain) pollValid(pollTx PollTx) bool {
 	// Check if ID is unique, in known polls and this transaction
 	nextPollId := b.nextPollId
 	if pollTx.ID != nextPollId {
+		fmt.Println("ID is wrong")
+		fmt.Println(pollTx.ID, nextPollId)
 		return false
 	}
 	nextPollId++
 
 	if pollTx.Poll.Question == "" {
-		return false
-	}
-
-	if pollTx.Poll.Deadline.Before(time.Now()) {
 		return false
 	}
 	return true
@@ -311,9 +325,13 @@ func calculateHash(block *Block) string {
 // - Hash is correct and starts with necessary amount of zeros
 func hashesValid(block *Block) bool {
 	if !hashValid(block.Hash, block.Difficulty) {
+		fmt.Println("Invalid with difficulty")
 		return false
 	}
 	if block.Hash != calculateHash(block) {
+		fmt.Println("Calculated hash different")
+		fmt.Println(block.Hash)
+		fmt.Println(calculateHash(block))
 		return false
 	}
 	return true

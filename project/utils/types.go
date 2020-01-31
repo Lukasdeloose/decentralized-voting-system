@@ -77,9 +77,11 @@ type Block struct {
 
 // Convert the fields of the block to a string representation, allowing us to hash it
 func (b Block) ToString() string {
-	str := ""
-	str += string(b.ID) + b.Timestamp.String() + string(b.Difficulty) + b.Transactions.ToString() + b.PaillierPublic.N.String() +
-		b.PaillierPublic.G.String() + b.PrevHash + b.Nonce
+	//str := ""
+	//str = fmt.Sprint(b.ID, b.Timestamp.String(), b.Difficulty, b.Transactions.ToString(), b.PaillierPublic.N.String(),
+	//	b.PaillierPublic.G.String(), b.PrevHash, b.Nonce)
+	str := fmt.Sprint(b.Nonce, b.Origin, b.Difficulty, b.ID, b.PrevHash, b.Transactions.ToString(), b.PaillierPublic.N.String(),
+		b.PaillierPublic.G.String())
 	return str
 }
 
@@ -95,12 +97,12 @@ type Transactions struct {
 func (tx Transactions) ToString() string {
 	str := ""
 	for _, vote := range tx.Votes {
-		str += string(vote.ID) + vote.Vote.Origin + string(vote.Vote.PollID) + hex.EncodeToString(vote.Vote.Vote)
+		str += fmt.Sprint(vote.ID, vote.Vote.Origin, vote.Vote.PollID, hex.EncodeToString(vote.Vote.Vote))
 	}
 	for _, poll := range tx.Polls {
-		str += string(poll.ID) + poll.Poll.Origin + poll.Poll.Question
+		str += fmt.Sprint(poll.ID, poll.Poll.Origin, poll.Poll.Question)
 		for _, voter := range poll.Poll.Voters {
-			str += voter
+			str += fmt.Sprint(voter)
 		}
 	}
 	// TODO: Registers
@@ -133,27 +135,19 @@ func (s *SerializableRSAPubKey) ToRSA() rsa.PublicKey {
 
 type Poll struct {
 	Origin    string
+	Id        uint32
 	Question  string
 	Voters    []string // Hashes of Sciper numbers of people who are allowed to vote
 	Deadline  time.Time
 	PublicKey SerializablePaillierPubKey
 }
 
-// TODO seems like a bad idea to identify polls based on question/origin/voters could use ID?
 func (poll *Poll) IsEqual(poll2 *Poll) bool {
 	if poll.Origin != poll2.Origin {
 		return false
 	}
-	if poll.Question != poll.Question {
+	if poll.Id != poll2.Id {
 		return false
-	}
-	if len(poll.Voters) != len(poll2.Voters) {
-		return false
-	}
-	for i := 0; i < len(poll.Voters); i++ {
-		if poll.Voters[i] != poll2.Voters[i] {
-			return false
-		}
 	}
 	return true
 }

@@ -139,20 +139,19 @@ func (ws *WebServer) handlePostPrivate(w http.ResponseWriter, r *http.Request) {
 	ws.privateRumorer.UIIn() <- &Message{Text: data.Text, Destination: &origin}
 }
 
-
 func (ws *WebServer) handleGetPolls(w http.ResponseWriter, r *http.Request) {
 	// Get all peers from the rumorer, encode them, and return them to the GUI client
 	type ResultJSON struct {
-		Count int64 `json:"count"`
+		Count     int64     `json:"count"`
 		Timestamp time.Time `json:"timestamp"`
 	}
 	type PollJSON struct {
-		Question string `json:"question"`
-		Origin string `json:"origin"`
-		ID uint32 `json:"id"`
-		CanVote bool `json:"canVote"`
-		CanCount bool `json:"canCount"`
-		Result ResultJSON `json:"result"`
+		Question string     `json:"question"`
+		Origin   string     `json:"origin"`
+		ID       uint32     `json:"id"`
+		CanVote  bool       `json:"canVote"`
+		CanCount bool       `json:"canCount"`
+		Result   ResultJSON `json:"result"`
 	}
 	type respStruct struct {
 		Polls []PollJSON `json:"polls"`
@@ -192,8 +191,7 @@ func (ws *WebServer) handleGetPolls(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
-func (ws *WebServer) handlePostVote(w http.ResponseWriter, r *http.Request){
+func (ws *WebServer) handlePostVote(w http.ResponseWriter, r *http.Request) {
 	// Parse pollid from request
 	vars := mux.Vars(r)
 	pollIdStr := vars["pollId"]
@@ -225,7 +223,7 @@ func (ws *WebServer) handlePostVote(w http.ResponseWriter, r *http.Request){
 	}
 
 	ws.voteRumorer.UIIn() <- &VotingMessage{
-		NewVote:      &NewVote{
+		NewVote: &NewVote{
 			Pollid: pollId,
 			Vote:   vote,
 		},
@@ -245,7 +243,6 @@ func (ws *WebServer) handlePostCount(w http.ResponseWriter, r *http.Request) {
 	}
 	pollId := uint32(pollIdInt)
 
-
 	// Send message to the Gossiper
 	ws.voteRumorer.UIIn() <- &VotingMessage{
 		CountRequest: &CountRequest{Pollid: pollId},
@@ -257,7 +254,7 @@ func (ws *WebServer) handlePostPolls(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	var data struct {
 		Question string `json:"question"`
-		Voters string `json:"voters"`
+		Voters   string `json:"voters"`
 	}
 	err := decoder.Decode(&data)
 	if err != nil {
@@ -266,10 +263,54 @@ func (ws *WebServer) handlePostPolls(w http.ResponseWriter, r *http.Request) {
 
 	votersSlice := strings.Split(data.Voters, "\n")
 	ws.voteRumorer.UIIn() <- &VotingMessage{
-		NewPoll:      &NewPoll{
+		NewPoll: &NewPoll{
 			Question: data.Question,
 			Voters:   votersSlice,
 		},
 	}
 
+}
+
+func (ws *WebServer) handleGetBlockchain(w http.ResponseWriter, r *http.Request) {
+
+	type TransactionsJSON struct {
+		Votes     []VoteTx     `json:"votes"`
+		Polls     []PollTx     `json:"polls"`
+		Registers []RegisterTx `json:"registers"`
+		Results   []ResultTx   `json:"results"`
+	}
+
+	type BlockJSON struct {
+		ID        uint32    `json:"id"`
+		Timestamp time.Time `json:"timestamp"`
+		//Transactions TransactionsJSON `json:"transactions"`
+		Difficulty int    `json:"difficulty"`
+		Origin     string `json:"origin"`
+		Nonce      string `json:"nonce"`
+		PrevHash   string `json:"prevHash"`
+		Hash       string `json:"hash"`
+	}
+
+	type respStruct struct {
+		Blocks []BlockJSON `json:"blocks"`
+	}
+	blocks := ws.blockchain.Blocks
+
+	resp := respStruct{Blocks: make([]BlockJSON, len(blocks))}
+	for i, block := range blocks {
+		resp.Blocks[i] = BlockJSON{
+			Timestamp:  block.Timestamp,
+			Origin:     block.Origin,
+			ID:         block.ID,
+			Difficulty: block.Difficulty,
+			Nonce:      block.Nonce,
+			PrevHash:   block.PrevHash,
+			Hash:       block.Hash,
+		}
+	}
+
+	err := json.NewEncoder(w).Encode(resp)
+	if err != nil {
+		fmt.Printf("ERROR: could net encode polls: %v\n", err)
+	}
 }

@@ -13,16 +13,35 @@
     <!--AJAX content will load here-->
 </div>
 <h2>Open Polls</h2>
-    <div>
-        <ul id="polls">
-            <!--AJAX content will load here-->
-        </ul>
-    </div>
-    <div>
-        Add a poll:<br>
-        <input type="textbox" name="add-poll-question" id="add-poll-question" value="Your question"><br>
-        <textarea rows="5" cols="20" id="add-poll-voters">Voters (1 per line)</textarea><br>
-        <button id="add-poll-button">Send</button>
-    </div>
+<div>
+    <ul id="polls">
+        <!--AJAX content will load here-->
+    </ul>
+</div>
+<div>
+    Add a poll:<br>
+    <input type="textbox" name="add-poll-question" id="add-poll-question" value="Your question"><br>
+    <textarea rows="5" cols="20" id="add-poll-voters">Voters (1 per line)</textarea><br>
+    <button id="add-poll-button">Send</button>
+</div>
+
+<h2>Blockchain</h2>
+<div id="blockchain">
+    <table id="blockchainTable" border="1">
+        <thead>
+        <tr>
+            <th>Block number</th>
+            <th>Timestamp</th>
+            <th>Origin</th>
+            <th>Hash</th>
+            <th>Previous Hash</th>
+            <th>Difficulty</th>
+        </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+</div>
+
 </body>
 </html>
