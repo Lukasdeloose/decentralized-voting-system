@@ -2,7 +2,11 @@ package blockchain
 
 import (
 	"bitbucket.org/ustraca/crypto/paillier"
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
 	"fmt"
+	"github.com/dedis/protobuf"
 	"github.com/lukasdeloose/decentralized-voting-system/project/udp"
 	. "github.com/lukasdeloose/decentralized-voting-system/project/utils"
 	"time"
@@ -22,9 +26,10 @@ type Miner struct {
 	stopMining       chan uint32 // ID of block where to stop mining for
 	fork             bool
 	mining           bool
+	name             string
 }
 
-func NewMiner(blockchain *Blockchain, transActionsIn chan *Transaction, blockIn chan *Block, blocksOut chan *AddrGossipPacket) *Miner {
+func NewMiner(name string, blockchain *Blockchain, transActionsIn chan *Transaction, blockIn chan *Block, blocksOut chan *AddrGossipPacket) *Miner {
 	return &Miner{
 		blockchain:     blockchain,
 		difficulty:     1,
@@ -33,6 +38,7 @@ func NewMiner(blockchain *Blockchain, transActionsIn chan *Transaction, blockIn 
 		blocksOut:      blocksOut,
 		stopMining:     make(chan uint32, 10),
 		mining:         false,
+		name:           name,
 	}
 }
 
@@ -220,4 +226,90 @@ func (miner Miner) mine(newBlock *Block) *Block {
 		}
 	}
 	return newBlock
+}
+
+
+func (m *Miner) verifyPollTransaction(tx *PollTx) bool {
+	// Verify the signature
+	pubKey := m.blockchain.GetPublicKey(tx.Poll.Origin)
+	if pubKey == nil {
+		fmt.Printf("INVALIDE POLLTX: cannot find origin\n")
+		return false
+	}
+
+	pollBytes, _ := protobuf.Encode(tx.Poll)
+	hash := sha256.Sum256(pollBytes)
+	err := rsa.VerifyPSS(pubKey, crypto.SHA256, hash[:], tx.Signature, nil)
+	if err != nil {
+		fmt.Printf("INVALID POLLTX: invalid signature\n")
+		return false
+	}
+
+	for _, poll :=  range m.blockchain.Polls {
+		if poll.ID == tx.ID {
+			fmt.Printf("INVALID POLLTX: id already exists\n") // TODO +1 check?
+			return false
+		}
+	}
+	return true
+}
+
+
+func (m *Miner) verifyVoteTransaction(tx *VoteTx) bool {
+	pubKey := m.blockchain.GetPublicKey(tx.Vote.Origin)
+	if pubKey == nil {
+		fmt.Printf("INVALIDE VOTETX: cannot find origin\n")
+		return false
+	}
+
+	pollBytes, _ := protobuf.Encode(tx.Vote)
+	hash := sha256.Sum256(pollBytes)
+	err := rsa.VerifyPSS(pubKey, crypto.SHA256, hash[:], tx.Signature, nil)
+	if err != nil {
+		fmt.Printf("INVALID VOTETX: invalid signature\n")
+		return false
+	}
+
+	for _, votes :=  range m.blockchain.Votes {
+		for _, vote := range votes {
+			if vote.ID == tx.ID {
+				fmt.Printf("INVALID VOTETX: id already exists\n") // TODO +1 check?
+				return false
+			}
+		}
+	}
+
+	var poll *PollTx
+	for _, p := range m.blockchain.Polls {
+		if p.ID == tx.Vote.PollID {
+			poll = p
+			break
+		}
+	}
+	if poll == nil {
+		fmt.Printf("INVALID VOTETX: poll does not exist\n") // TODO necessary?
+		return false
+	}
+
+	allowed := false
+	for _, voter := range poll.Poll.Voters {
+		if voter == m.name {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		fmt.Printf("INVALID VOTETX: you are not allowed to vote\n")
+		return false
+	}
+
+	return true
+}
+
+func (m *Miner) verifyRegistration(reg *RegisterTx) {
+	// TODO
+}
+
+func (m *Miner) verifyResults(res *ResultTx) {
+	// TODO
 }

@@ -61,17 +61,6 @@ func (v *VoteRumorer) Run() {
 			}
 		}
 	}()
-
-	go func() {
-		for packet := range v.in {
-			if packet.Gossip.Transaction != nil {
-				// Pass the transactions to the blockchain for storage
-				go func() {
-					v.blockchain.Transactions <- packet.Gossip.Transaction
-				}()
-			}
-		}
-	}()
 }
 
 func (v *VoteRumorer) UIIn() chan *VotingMessage {
@@ -248,7 +237,8 @@ func (v *VoteRumorer) createEncryptedVote(vote bool, pollid uint32) *VoteTx {
 		}
 		return nil
 	}
-	signature, _ := v.privateKey.Sign(rand.Reader, voteBytes, crypto.SHA256)
+	hash := sha256.Sum256(voteBytes)
+	signature, _ := rsa.SignPSS(rand.Reader, v.privateKey, crypto.SHA256, hash[:], nil)
 
 	return &VoteTx{
 		ID:        0,
@@ -283,7 +273,8 @@ func (v *VoteRumorer) createPoll(question string, voters []string) *PollTx {
 		}
 		return nil
 	}
-	signature, _ := v.privateKey.Sign(rand.Reader, pollBytes, crypto.SHA256)
+	hash := sha256.Sum256(pollBytes)
+	signature, _ := rsa.SignPSS(rand.Reader, v.privateKey, crypto.SHA256, hash[:], nil)
 
 	return &PollTx{
 		Poll:      poll,
