@@ -28,6 +28,7 @@ type Blockchain struct {
 	difficulty int
 
 	Registry []*RegisterTx
+	PublicKeys map[string]*rsa.PublicKey
 	Votes    map[uint32][]*VoteTx // Votes by pollID
 	Polls    []*PollTx
 	Results  map[uint32]*ResultTx // Results by pollID
@@ -51,6 +52,7 @@ func NewBlockChain() *Blockchain {
 		Votes:                   make(map[uint32][]*VoteTx),
 		Polls:                   make([]*PollTx, 0),
 		Results:                 make(map[uint32]*ResultTx),
+		PublicKeys:              make(map[string]*rsa.PublicKey),
 		unconfirmedTransactions: Transactions{},
 		Blocks:                  Blocks,
 		difficulty:              1,
@@ -68,6 +70,19 @@ func (b *Blockchain) GetPoll(pollId uint32) *PollTx {
 		}
 	}
 	return nil
+}
+
+
+func (b *Blockchain) GetPublicKey(origin string) *rsa.PublicKey {
+	b.mutex.RLock()
+	defer b.mutex.RUnlock()
+
+	pubKey, exists := b.PublicKeys[origin]
+	if !exists {
+		return nil
+	} else {
+		return pubKey
+	}
 }
 
 func (b *Blockchain) GetVotes(pollId uint32) []*VoteTx {
@@ -208,6 +223,8 @@ func (b *Blockchain) AddTransaction(t *Transaction) {
 		fmt.Printf("BLOCKCHAIN ADD votetx for %v\n", t.VoteTx.Vote.PollID)
 	} else if t.RegisterTx != nil {
 		b.Registry = append(b.Registry, t.RegisterTx)
+		pubKey := t.RegisterTx.Registry.PublicKey.ToRSA()
+		b.PublicKeys[t.RegisterTx.Registry.Origin] = &pubKey
 		fmt.Printf("BLOCKCHAIN ADD registerTx for %v\n", t.RegisterTx.Registry.Origin)
 	} else if t.ResultTx != nil {
 		b.Results[t.ResultTx.Result.PollId] = t.ResultTx

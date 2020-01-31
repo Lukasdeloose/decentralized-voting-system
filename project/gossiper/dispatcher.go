@@ -113,7 +113,6 @@ func (d *Dispatcher) Run() {
 			fmt.Println("mongerable arrived in dispatcher from d.RumorerLocalOut")
 			// Process public messages for different parts of the application
 			if mongerable.ToGossip().Transaction != nil {
-				fmt.Println("Transaction arrived in dispatcher")
 				d.TransactionRumorerIn <- mongerable.ToGossip().Transaction
 				fmt.Println("sent to transactionrumorerin")
 			} else if mongerable.ToGossip().MongerableBlock != nil {
